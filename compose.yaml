@@ -1,0 +1,12 @@
+services:
+  php:
+    build:
+      context: ./docker/php
+    volumes:
+      - .:/app
+      - composer-cache:/root/.composer/cache
+    working_dir: /app
+    tty: true
+
+volumes:
+  composer-cache:
