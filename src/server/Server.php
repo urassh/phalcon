@@ -10,6 +10,7 @@ final class Server
 {
   public function __construct(
     private readonly string $host,
+    private readonly Protocol $protocol,
   ) {
   }
 
@@ -30,10 +31,9 @@ final class Server
     do {
       $stream = stream_socket_accept($socket, -1);
       if ($stream) {
-        $connection = new Connection($stream);
+        $connection = new Connection($stream, $this->protocol);
         echo 'Accepted connection from ' . $connection->peerName() . "\n";
-        $connection->write("Hello from the server!\n");
-        $connection->close();
+        $connection->handle();
       }
 
     } while ($stream);
