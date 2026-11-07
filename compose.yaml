@@ -6,7 +6,6 @@ services:
       - .:/app
       - composer-cache:/root/.composer/cache
     working_dir: /app
-    command: php entrypoint.php
     ports:
       ["8080:8080"]
     tty: true
