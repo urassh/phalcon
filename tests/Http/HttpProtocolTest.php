@@ -6,8 +6,9 @@ namespace Urassh\Phalcon\Tests\Http;
 
 use PHPUnit\Framework\TestCase;
 use Urassh\Phalcon\Http\HttpProtocol;
+use Urassh\Phalcon\Http\ValueObject\Request;
 use Urassh\Phalcon\Http\RequestHandler;
-use Urassh\Phalcon\Http\Response;
+use Urassh\Phalcon\Http\ValueObject\Response;
 
 final class HttpProtocolTest extends TestCase
 {
@@ -42,22 +43,39 @@ final class HttpProtocolTest extends TestCase
     $this->assertTrue($protocol->isComplete("POST / HTTP/1.1\r\nContent-Length: 18\r\n\r\nContent-Length: 99"));
   }
 
-  public function testRespondSerializesHandlerResponse(): void
+  public function testAbsoluteFormTargetIsNotTreatedAsHeader(): void
+  {
+    $protocol = $this->createProtocol();
+
+    $this->assertTrue($protocol->isComplete("GET http://localhost:8080/ HTTP/1.1\r\n\r\n"));
+  }
+
+  public function testRespondPassesParsedRequestToHandler(): void
   {
     $protocol = $this->createProtocol();
 
     $this->assertSame(
-      (new Response('GET / HTTP/1.1'))->toString(),
-      $protocol->respond('GET / HTTP/1.1'),
+      (new Response('GET /'))->toString(),
+      $protocol->respond("GET / HTTP/1.1\r\n\r\n"),
+    );
+  }
+
+  public function testRespondReturnsBadRequestOnMalformedRequest(): void
+  {
+    $protocol = $this->createProtocol();
+
+    $this->assertSame(
+      (new Response("Bad Request\n", 400))->toString(),
+      $protocol->respond("garbage\r\n\r\n"),
     );
   }
 
   private function createProtocol(): HttpProtocol
   {
     return new HttpProtocol(new class implements RequestHandler {
-      public function handle(string $request): Response
+      public function handle(Request $request): Response
       {
-        return new Response($request);
+        return new Response("{$request->method()} {$request->target()}");
       }
     });
   }

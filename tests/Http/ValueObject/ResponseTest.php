@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Http;
+namespace Urassh\Phalcon\Tests\Http\ValueObject;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Http\Response;
+use Urassh\Phalcon\Http\ValueObject\Response;
 
 final class ResponseTest extends TestCase
 {
@@ -22,5 +22,12 @@ final class ResponseTest extends TestCase
         . "hello\n",
       $response->toString(),
     );
+  }
+
+  public function testToStringUsesGivenStatus(): void
+  {
+    $response = new Response("Bad Request\n", 400);
+
+    $this->assertStringStartsWith("HTTP/1.1 400 Bad Request\r\n", $response->toString());
   }
 }
