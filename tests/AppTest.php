@@ -7,6 +7,7 @@ namespace Urassh\Phalcon\Tests;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Urassh\Phalcon\App;
+use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
@@ -152,6 +153,34 @@ final class AppTest extends TestCase
     $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
 
     $this->assertSame(500, $response->status());
+  }
+
+  public function testConfigReturnsNullWithoutConfigFile(): void
+  {
+    $this->assertNull((new App())->config('server.host'));
+  }
+
+  public function testFromConfigLoadsYaml(): void
+  {
+    $path = tempnam(sys_get_temp_dir(), 'phalcon');
+    $this->assertIsString($path);
+    file_put_contents($path, "database:\n  dsn: sqlite::memory:\n");
+
+    try {
+      $app = App::fromConfig($path);
+    } finally {
+      unlink($path);
+    }
+
+    $this->assertSame('sqlite::memory:', $app->config('database.dsn'));
+    $this->assertNull($app->config('database.user'));
+  }
+
+  public function testFromConfigThrowsWhenFileDoesNotExist(): void
+  {
+    $this->expectException(ConfigException::class);
+
+    App::fromConfig('/nonexistent/phalcon.yaml');
   }
 
   private function send(App $app, string $method, string $target, string $body = ''): Response
