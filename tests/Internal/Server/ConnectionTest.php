@@ -5,65 +5,130 @@ declare(strict_types=1);
 namespace Urassh\Phalcon\Tests\Internal\Server;
 
 use PHPUnit\Framework\TestCase;
-use RuntimeException;
 use Urassh\Phalcon\Internal\Server\Connection;
 
 final class ConnectionTest extends TestCase
 {
-  public function testPassesCompleteDataToProtocolAndWritesResponseThenCloses(): void
+  public function testReadsUntilWouldBlockThenRespondsWhenComplete(): void
   {
-    [$server, $client] = $this->createSocketPair();
+    $socket = new FakeSocket();
+    $socket->incoming = ['hel', 'lo', 'END'];
     $protocol = new FakeProtocol();
-    fwrite($client, 'helloEND');
+    $connection = new Connection($socket, $protocol, 1000);
 
-    (new Connection($server, $protocol))->handle();
+    $connection->onReadable();
 
     $this->assertSame('helloEND', $protocol->received);
-    // close されていれば EOF まで読み切れる
-    $this->assertSame('response', stream_get_contents($client));
-    fclose($client);
+    $this->assertSame('response', $socket->written);
+    $this->assertTrue($connection->isFinished());
   }
 
-  public function testPassesPartialDataToProtocolWhenClientStopsSending(): void
+  public function testWaitsForNextNotificationWhenDataIsIncomplete(): void
   {
-    [$server, $client] = $this->createSocketPair();
+    $socket = new FakeSocket();
+    $socket->incoming = ['hello'];
     $protocol = new FakeProtocol();
-    fwrite($client, 'hello');
-    stream_socket_shutdown($client, STREAM_SHUT_WR);
+    $connection = new Connection($socket, $protocol, 1000);
 
-    (new Connection($server, $protocol))->handle();
+    $connection->onReadable();
+
+    $this->assertNull($protocol->received);
+    $this->assertFalse($connection->isFinished());
+
+    $socket->incoming = ['END'];
+    $connection->onReadable();
+
+    $this->assertSame('helloEND', $protocol->received);
+    $this->assertTrue($connection->isFinished());
+  }
+
+  public function testRespondsWithPartialDataWhenClientStopsSending(): void
+  {
+    $socket = new FakeSocket();
+    $socket->incoming = ['hello', ''];
+    $protocol = new FakeProtocol();
+    $connection = new Connection($socket, $protocol, 1000);
+
+    $connection->onReadable();
 
     $this->assertSame('hello', $protocol->received);
-    fclose($client);
+    $this->assertSame('response', $socket->written);
+  }
+
+  public function testFinishesWithoutRespondingWhenClientSendsNothing(): void
+  {
+    $socket = new FakeSocket();
+    $socket->incoming = [''];
+    $protocol = new FakeProtocol();
+    $connection = new Connection($socket, $protocol, 1000);
+
+    $connection->onReadable();
+
+    $this->assertNull($protocol->received);
+    $this->assertSame('', $socket->written);
+    $this->assertTrue($connection->isFinished());
   }
 
   public function testStopsReadingOnceBufferExceedsMaxSize(): void
   {
-    $stream = fopen('php://temp', 'r+');
-    if ($stream === false) {
-      throw new RuntimeException('Failed to open stream');
-    }
-    $size = Connection::MAX_BUFFER_SIZE * 2;
-    fwrite($stream, str_repeat('a', $size));
-    rewind($stream);
+    $socket = new FakeSocket();
+    $chunk = str_repeat('a', 8192);
+    $socket->incoming = array_fill(0, (int) (Connection::MAX_BUFFER_SIZE / 8192) * 2, $chunk);
     $protocol = new FakeProtocol();
+    $connection = new Connection($socket, $protocol, 1000);
 
-    (new Connection($stream, $protocol))->handle();
+    $connection->onReadable();
 
     $this->assertGreaterThan(Connection::MAX_BUFFER_SIZE, strlen((string) $protocol->received));
-    $this->assertLessThan($size, strlen((string) $protocol->received));
+    $this->assertNotEmpty($socket->incoming);
   }
 
-  /**
-   * @return array{resource, resource}
-   */
-  private function createSocketPair(): array
+  public function testResumesWritingWhenSocketBecomesWritable(): void
   {
-    $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-    if ($pair === false) {
-      throw new RuntimeException('Failed to create socket pair');
-    }
+    $socket = new FakeSocket();
+    $socket->incoming = ['END'];
+    $socket->writableBytes = 3;
+    $connection = new Connection($socket, new FakeProtocol(), 1000);
 
-    return [$pair[0], $pair[1]];
+    $connection->onReadable();
+
+    $this->assertSame('res', $socket->written);
+    $this->assertFalse($connection->isFinished());
+
+    $socket->writableBytes = null;
+    $connection->onWritable();
+
+    $this->assertSame('response', $socket->written);
+    $this->assertTrue($connection->isFinished());
+  }
+
+  public function testIgnoresWritableBeforeResponding(): void
+  {
+    $socket = new FakeSocket();
+    $connection = new Connection($socket, new FakeProtocol(), 1000);
+
+    $connection->onWritable();
+
+    $this->assertSame('', $socket->written);
+    $this->assertFalse($connection->isFinished());
+  }
+
+  public function testFinishesOnSocketError(): void
+  {
+    $socket = new FakeSocket();
+    $socket->failOnRead = true;
+    $connection = new Connection($socket, new FakeProtocol(), 1000);
+
+    $connection->onReadable();
+
+    $this->assertTrue($connection->isFinished());
+  }
+
+  public function testExpiresAtDeadline(): void
+  {
+    $connection = new Connection(new FakeSocket(), new FakeProtocol(), 1000);
+
+    $this->assertFalse($connection->isExpired(999));
+    $this->assertTrue($connection->isExpired(1000));
   }
 }
