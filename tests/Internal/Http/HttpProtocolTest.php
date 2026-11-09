@@ -55,7 +55,7 @@ final class HttpProtocolTest extends TestCase
     $protocol = $this->createProtocol();
 
     $this->assertSame(
-      (new Response('GET /'))->toString(),
+      Response::text('GET /')->toString(),
       $protocol->respond("GET / HTTP/1.1\r\n\r\n"),
     );
   }
@@ -65,7 +65,7 @@ final class HttpProtocolTest extends TestCase
     $protocol = $this->createProtocol();
 
     $this->assertSame(
-      (new Response("Bad Request\n", 400))->toString(),
+      Response::text("Bad Request\n", 400)->toString(),
       $protocol->respond("garbage\r\n\r\n"),
     );
   }
@@ -75,7 +75,7 @@ final class HttpProtocolTest extends TestCase
     return new HttpProtocol(new class implements RequestHandler {
       public function handle(Request $request): Response
       {
-        return new Response("{$request->method()} {$request->target()}");
+        return Response::text("{$request->method()} {$request->target()}");
       }
     });
   }

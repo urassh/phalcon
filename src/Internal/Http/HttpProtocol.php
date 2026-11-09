@@ -38,7 +38,7 @@ final class HttpProtocol implements Protocol
     try {
       $request = Request::parse($data);
     } catch (InvalidArgumentException) {
-      return (new Response("Bad Request\n", 400))->toString();
+      return Response::text("Bad Request\n", 400)->toString();
     }
 
     return $this->handler->handle($request)->toString();

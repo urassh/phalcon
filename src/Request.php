@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Urassh\Phalcon;
 
 use InvalidArgumentException;
+use JsonException;
+use Urassh\Phalcon\Internal\Http\BadRequestException;
 use Urassh\Phalcon\Internal\Http\Headers;
 
 final class Request
@@ -14,13 +16,18 @@ final class Request
 
   private const LINE_TERMINATOR = "\r\n";
 
-  /** @internal */
+  /**
+   * @internal
+   *
+   * @param array<string, string> $params ルートパラメータ
+   */
   public function __construct(
     private readonly string $method,
     private readonly string $target,
     private readonly string $version,
     private readonly Headers $headers,
     private readonly string $body,
+    private readonly array $params = [],
   ) {
   }
 
@@ -65,6 +72,18 @@ final class Request
     return [substr($head, 0, $lineEnd), substr($head, $lineEnd + strlen(self::LINE_TERMINATOR))];
   }
 
+  /**
+   * ルートパラメータを差し替えた新しいインスタンスを返す
+   *
+   * @internal
+   *
+   * @param array<string, string> $params
+   */
+  public function withParams(array $params): self
+  {
+    return new self($this->method, $this->target, $this->version, $this->headers, $this->body, $params);
+  }
+
   public function method(): string
   {
     return $this->method;
@@ -80,6 +99,46 @@ final class Request
     return $this->version;
   }
 
+  /**
+   * リクエストターゲットのパス部分 (クエリ文字列を除く)
+   */
+  public function path(): string
+  {
+    if (str_starts_with($this->target, '/')) {
+      $pos = strpos($this->target, '?');
+
+      return $pos === false ? $this->target : substr($this->target, 0, $pos);
+    }
+
+    // absolute-form (http://host/path) は parse_url に任せる
+    $path = parse_url($this->target, PHP_URL_PATH);
+
+    return is_string($path) && $path !== '' ? $path : '/';
+  }
+
+  public function param(string $name): ?string
+  {
+    return $this->params[$name] ?? null;
+  }
+
+  public function query(string $name): ?string
+  {
+    $query = parse_url($this->target, PHP_URL_QUERY);
+    if (!is_string($query)) {
+      return null;
+    }
+
+    parse_str($query, $values);
+    $value = $values[$name] ?? null;
+
+    return is_string($value) ? $value : null;
+  }
+
+  public function header(string $name): ?string
+  {
+    return $this->headers->get($name);
+  }
+
   /** @internal */
   public function headers(): Headers
   {
@@ -89,5 +148,19 @@ final class Request
   public function body(): string
   {
     return $this->body;
+  }
+
+  /**
+   * ボディを JSON としてデコードする。オブジェクトは連想配列になる
+   *
+   * 不正な JSON の場合はハンドラの処理を打ち切り、400 Bad Request を返す
+   */
+  public function json(): mixed
+  {
+    try {
+      return json_decode($this->body, true, 512, JSON_THROW_ON_ERROR);
+    } catch (JsonException $e) {
+      throw new BadRequestException('Malformed JSON body', previous: $e);
+    }
   }
 }

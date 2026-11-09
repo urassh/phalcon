@@ -8,13 +8,89 @@ final class Response
 {
   private const REASON_PHRASES = [
     200 => 'OK',
+    201 => 'Created',
+    204 => 'No Content',
+    301 => 'Moved Permanently',
+    302 => 'Found',
+    303 => 'See Other',
+    304 => 'Not Modified',
     400 => 'Bad Request',
+    401 => 'Unauthorized',
+    403 => 'Forbidden',
+    404 => 'Not Found',
+    405 => 'Method Not Allowed',
+    409 => 'Conflict',
+    422 => 'Unprocessable Content',
+    500 => 'Internal Server Error',
   ];
 
-  public function __construct(
+  /** サーバが自動で付けるため、利用者の指定は無視するヘッダ */
+  private const MANAGED_HEADERS = ['content-length', 'connection'];
+
+  /**
+   * @param array<string, array{string, string}> $headers 小文字化したヘッダ名 => [元の名前, 値]
+   */
+  private function __construct(
     private readonly string $body,
-    private readonly int $status = 200,
+    private readonly int $status,
+    private readonly array $headers,
   ) {
+  }
+
+  public static function text(string $body, int $status = 200): self
+  {
+    return self::withContentType($body, $status, 'text/plain; charset=utf-8');
+  }
+
+  public static function html(string $body, int $status = 200): self
+  {
+    return self::withContentType($body, $status, 'text/html; charset=utf-8');
+  }
+
+  /**
+   * @throws \JsonException JSON にエンコードできない場合
+   */
+  public static function json(mixed $data, int $status = 200): self
+  {
+    $body = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    return self::withContentType($body, $status, 'application/json');
+  }
+
+  private static function withContentType(string $body, int $status, string $contentType): self
+  {
+    return (new self($body, $status, []))->withHeader('Content-Type', $contentType);
+  }
+
+  public function withStatus(int $status): self
+  {
+    return new self($this->body, $status, $this->headers);
+  }
+
+  public function withHeader(string $name, string $value): self
+  {
+    $headers = $this->headers;
+    $headers[strtolower($name)] = [$name, $value];
+
+    return new self($this->body, $this->status, $headers);
+  }
+
+  /** @internal */
+  public function status(): int
+  {
+    return $this->status;
+  }
+
+  /** @internal */
+  public function header(string $name): ?string
+  {
+    return $this->headers[strtolower($name)][1] ?? null;
+  }
+
+  /** @internal */
+  public function body(): string
+  {
+    return $this->body;
   }
 
   /** @internal */
@@ -22,8 +98,15 @@ final class Response
   {
     $reason = self::REASON_PHRASES[$this->status] ?? '';
 
-    return "HTTP/1.1 {$this->status} {$reason}\r\n"
-      . "Content-Type: text/plain\r\n"
+    $head = "HTTP/1.1 {$this->status} {$reason}\r\n";
+    foreach ($this->headers as $key => [$name, $value]) {
+      if (in_array($key, self::MANAGED_HEADERS, true)) {
+        continue;
+      }
+      $head .= "{$name}: {$value}\r\n";
+    }
+
+    return $head
       . 'Content-Length: ' . strlen($this->body) . "\r\n"
       . "Connection: close\r\n"
       . "\r\n"

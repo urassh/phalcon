@@ -6,6 +6,7 @@ namespace Urassh\Phalcon\Tests;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use Urassh\Phalcon\Internal\Http\BadRequestException;
 use Urassh\Phalcon\Request;
 
 final class RequestTest extends TestCase
@@ -63,5 +64,55 @@ final class RequestTest extends TestCase
     $this->expectException(InvalidArgumentException::class);
 
     Request::parse('');
+  }
+
+  public function testPathStripsQueryString(): void
+  {
+    $this->assertSame('/users/42', Request::parse("GET /users/42?sort=asc HTTP/1.1\r\n\r\n")->path());
+  }
+
+  public function testPathOfAbsoluteFormTarget(): void
+  {
+    $this->assertSame('/users', Request::parse("GET http://localhost:8080/users?x=1 HTTP/1.1\r\n\r\n")->path());
+    $this->assertSame('/', Request::parse("GET http://localhost:8080 HTTP/1.1\r\n\r\n")->path());
+  }
+
+  public function testQueryReturnsDecodedValueOrNull(): void
+  {
+    $request = Request::parse("GET /search?q=hello%20world&tags[]=a HTTP/1.1\r\n\r\n");
+
+    $this->assertSame('hello world', $request->query('q'));
+    $this->assertNull($request->query('missing'));
+    $this->assertNull($request->query('tags'));
+  }
+
+  public function testHeaderIsCaseInsensitive(): void
+  {
+    $request = Request::parse("GET / HTTP/1.1\r\nX-Token: abc\r\nX-Token: def\r\n\r\n");
+
+    $this->assertSame('abc', $request->header('x-token'));
+    $this->assertNull($request->header('X-Missing'));
+  }
+
+  public function testParamComesFromWithParams(): void
+  {
+    $request = Request::parse("GET /users/42 HTTP/1.1\r\n\r\n");
+
+    $this->assertNull($request->param('id'));
+    $this->assertSame('42', $request->withParams(['id' => '42'])->param('id'));
+  }
+
+  public function testJsonDecodesObjectsAsArrays(): void
+  {
+    $request = Request::parse("POST / HTTP/1.1\r\nContent-Length: 15\r\n\r\n{\"name\":\"abc\"}");
+
+    $this->assertSame(['name' => 'abc'], $request->json());
+  }
+
+  public function testJsonThrowsBadRequestOnMalformedBody(): void
+  {
+    $this->expectException(BadRequestException::class);
+
+    Request::parse("POST / HTTP/1.1\r\nContent-Length: 1\r\n\r\n{")->json();
   }
 }

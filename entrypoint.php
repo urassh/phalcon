@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-use Urassh\Phalcon\Internal\Http\EchoRequestHandler;
-use Urassh\Phalcon\Internal\Http\HttpProtocol;
-use Urassh\Phalcon\Internal\Server\Server;
+use Urassh\Phalcon\App;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Response;
 
-$HOST = 'tcp://0.0.0.0:8080';
+$app = new App();
 
-$server = new Server($HOST, new HttpProtocol(new EchoRequestHandler()));
-$server->run();
+$app->get('/', fn (Request $req) => Response::text("Hello, world!\n"));
+
+$app->get('/users/{id}', fn (Request $req) => Response::json([
+  'id' => $req->param('id'),
+]));
+
+$app->post('/echo', fn (Request $req) => Response::text($req->body()));
+
+$app->serve(host: '0.0.0.0', port: 8080);
