@@ -19,6 +19,11 @@ final class FakeListeningSocket implements ListeningSocket
     return self::FD;
   }
 
+  public function localAddress(): string
+  {
+    return '127.0.0.1:8080';
+  }
+
   public function accept(): ?Socket
   {
     return array_shift($this->pending);
