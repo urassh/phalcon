@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Http;
+namespace Urassh\Phalcon\Internal\Http;
 
-use Urassh\Phalcon\Http\ValueObject\Request;
-use Urassh\Phalcon\Http\ValueObject\Response;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Response;
 
+/**
+ * @internal
+ */
 final class EchoRequestHandler implements RequestHandler
 {
   public function handle(Request $request): Response

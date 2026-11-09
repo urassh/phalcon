@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Server;
+namespace Urassh\Phalcon\Tests\Internal\Server;
 
-use Urassh\Phalcon\Server\Protocol;
+use Urassh\Phalcon\Internal\Server\Protocol;
 
 final class FakeProtocol implements Protocol
 {

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Http;
+namespace Urassh\Phalcon\Tests\Internal\Http;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Http\HttpProtocol;
-use Urassh\Phalcon\Http\ValueObject\Request;
-use Urassh\Phalcon\Http\RequestHandler;
-use Urassh\Phalcon\Http\ValueObject\Response;
+use Urassh\Phalcon\Internal\Http\HttpProtocol;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Internal\Http\RequestHandler;
+use Urassh\Phalcon\Response;
 
 final class HttpProtocolTest extends TestCase
 {

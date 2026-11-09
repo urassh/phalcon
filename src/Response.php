@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Http\ValueObject;
+namespace Urassh\Phalcon;
 
 final class Response
 {
@@ -17,6 +17,7 @@ final class Response
   ) {
   }
 
+  /** @internal */
   public function toString(): string
   {
     $reason = self::REASON_PHRASES[$this->status] ?? '';

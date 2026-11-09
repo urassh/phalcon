@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Server;
+namespace Urassh\Phalcon\Internal\Server;
 
+/**
+ * @internal
+ */
 final class Connection
 {
   public const MAX_BUFFER_SIZE = 1024 * 1024;

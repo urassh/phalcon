@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Http;
+namespace Urassh\Phalcon\Tests\Internal\Http;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Http\EchoRequestHandler;
-use Urassh\Phalcon\Http\ValueObject\Request;
-use Urassh\Phalcon\Http\ValueObject\Response;
+use Urassh\Phalcon\Internal\Http\EchoRequestHandler;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Response;
 
 final class EchoRequestHandlerTest extends TestCase
 {

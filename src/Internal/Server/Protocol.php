@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Server;
+namespace Urassh\Phalcon\Internal\Server;
 
+/**
+ * @internal
+ */
 interface Protocol
 {
   public function isComplete(string $data): bool;

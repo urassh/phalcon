@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Http\ValueObject;
+namespace Urassh\Phalcon\Tests\Internal\Http;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Http\ValueObject\Headers;
+use Urassh\Phalcon\Internal\Http\Headers;
 
 final class HeadersTest extends TestCase
 {

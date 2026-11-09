@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Http\ValueObject;
+namespace Urassh\Phalcon\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Http\ValueObject\Response;
+use Urassh\Phalcon\Response;
 
 final class ResponseTest extends TestCase
 {

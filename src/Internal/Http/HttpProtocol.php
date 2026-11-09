@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Http;
+namespace Urassh\Phalcon\Internal\Http;
 
 use InvalidArgumentException;
-use Urassh\Phalcon\Http\ValueObject\Headers;
-use Urassh\Phalcon\Http\ValueObject\Request;
-use Urassh\Phalcon\Http\ValueObject\Response;
-use Urassh\Phalcon\Server\Protocol;
+use Urassh\Phalcon\Internal\Server\Protocol;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Response;
 
+/**
+ * @internal
+ */
 final class HttpProtocol implements Protocol
 {
   public function __construct(

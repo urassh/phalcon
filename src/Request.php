@@ -2,16 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Http\ValueObject;
+namespace Urassh\Phalcon;
 
 use InvalidArgumentException;
+use Urassh\Phalcon\Internal\Http\Headers;
 
 final class Request
 {
+  /** @internal */
   public const HEADER_TERMINATOR = "\r\n\r\n";
 
   private const LINE_TERMINATOR = "\r\n";
 
+  /** @internal */
   public function __construct(
     private readonly string $method,
     private readonly string $target,
@@ -22,6 +25,8 @@ final class Request
   }
 
   /**
+   * @internal
+   *
    * @throws InvalidArgumentException リクエストラインが不正な場合
    */
   public static function parse(string $data): self
@@ -45,6 +50,8 @@ final class Request
 
   /**
    * ヘッダ部をリクエストラインとヘッダフィールドの行に分ける
+   *
+   * @internal
    *
    * @return array{string, string}
    */
@@ -73,6 +80,7 @@ final class Request
     return $this->version;
   }
 
+  /** @internal */
   public function headers(): Headers
   {
     return $this->headers;

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Server;
+namespace Urassh\Phalcon\Tests\Internal\Server;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Urassh\Phalcon\Server\Connection;
+use Urassh\Phalcon\Internal\Server\Connection;
 
 final class ConnectionTest extends TestCase
 {

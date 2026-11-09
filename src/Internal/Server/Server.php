@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Server;
+namespace Urassh\Phalcon\Internal\Server;
 
 use RuntimeException;
 
+/**
+ * @internal
+ */
 final class Server
 {
   public function __construct(

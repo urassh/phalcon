@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Http\ValueObject;
+namespace Urassh\Phalcon\Internal\Http;
 
+/**
+ * @internal
+ */
 final class Headers
 {
   /**

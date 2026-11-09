@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-use Urassh\Phalcon\Http\EchoRequestHandler;
-use Urassh\Phalcon\Http\HttpProtocol;
-use Urassh\Phalcon\Server\Server;
+use Urassh\Phalcon\Internal\Http\EchoRequestHandler;
+use Urassh\Phalcon\Internal\Http\HttpProtocol;
+use Urassh\Phalcon\Internal\Server\Server;
 
 $HOST = 'tcp://0.0.0.0:8080';
 

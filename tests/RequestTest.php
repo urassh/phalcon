@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Http\ValueObject;
+namespace Urassh\Phalcon\Tests;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Http\ValueObject\Request;
+use Urassh\Phalcon\Request;
 
 final class RequestTest extends TestCase
 {
