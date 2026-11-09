@@ -171,4 +171,11 @@ final class Config
 
     return is_int($port) ? $port : null;
   }
+
+  public function viewDirectory(): ?string
+  {
+    $directory = $this->get('view.directory');
+
+    return is_string($directory) ? $directory : null;
+  }
 }

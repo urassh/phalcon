@@ -9,6 +9,8 @@ use Throwable;
 use UnexpectedValueException;
 use Urassh\Phalcon\Internal\Http\BadRequestException;
 use Urassh\Phalcon\Internal\Http\RequestHandler;
+use Urassh\Phalcon\Internal\View\ViewException;
+use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
@@ -19,6 +21,13 @@ final class Router implements RequestHandler
 {
   /** @var list<Route> */
   private array $routes = [];
+
+  private ?Renderer $renderer = null;
+
+  public function useRenderer(?Renderer $renderer): void
+  {
+    $this->renderer = $renderer;
+  }
 
   public function add(string $method, string $path, Closure $handler): void
   {
@@ -63,7 +72,7 @@ final class Router implements RequestHandler
         );
       }
 
-      return $response;
+      return $this->render($response);
     } catch (BadRequestException) {
       return Response::text("Bad Request\n", 400);
     } catch (Throwable $e) {
@@ -71,5 +80,18 @@ final class Router implements RequestHandler
 
       return Response::text("Internal Server Error\n", 500);
     }
+  }
+
+  private function render(Response $response): Response
+  {
+    if (!$response->needsRender()) {
+      return $response;
+    }
+
+    if ($this->renderer === null) {
+      throw new ViewException('Response::view() requires view.directory in the config file or App::useRenderer()');
+    }
+
+    return $response->render($this->renderer);
   }
 }

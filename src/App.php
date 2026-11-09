@@ -10,6 +10,7 @@ use Urassh\Phalcon\Internal\Config\Config;
 use Urassh\Phalcon\Internal\Http\HttpProtocol;
 use Urassh\Phalcon\Internal\Routing\Router;
 use Urassh\Phalcon\Internal\Server\Server;
+use Urassh\Phalcon\Internal\View\PhpRenderer;
 
 final class App
 {
@@ -36,6 +37,11 @@ final class App
     $app = new self();
     $app->config = Config::load($path);
 
+    $directory = $app->config->viewDirectory();
+    if ($directory !== null) {
+      $app->useRenderer(new PhpRenderer($directory));
+    }
+
     return $app;
   }
 
@@ -45,6 +51,16 @@ final class App
   public function config(string $key): mixed
   {
     return $this->config->get($key);
+  }
+
+  /**
+   * Response::view() で使うテンプレートエンジンを差し替える
+   */
+  public function useRenderer(Renderer $renderer): self
+  {
+    $this->router->useRenderer($renderer);
+
+    return $this;
   }
 
   /**

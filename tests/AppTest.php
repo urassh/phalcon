@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Urassh\Phalcon\App;
 use Urassh\Phalcon\Exception\ConfigException;
+use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
@@ -181,6 +182,56 @@ final class AppTest extends TestCase
     $this->expectException(ConfigException::class);
 
     App::fromConfig('/nonexistent/phalcon.yaml');
+  }
+
+  public function testRendersViewFromConfiguredDirectory(): void
+  {
+    $dir = sys_get_temp_dir() . '/phalcon-app-view-' . bin2hex(random_bytes(4));
+    mkdir("{$dir}/views/users", 0777, true);
+    file_put_contents("{$dir}/phalcon.yaml", "view:\n  directory: views\n");
+    file_put_contents("{$dir}/views/users/show.php", '<h1>Hello, <?= e($name) ?></h1>');
+
+    try {
+      $app = App::fromConfig("{$dir}/phalcon.yaml")
+        ->get('/users/{id}', fn (Request $req) => Response::view('users/show', ['name' => $req->param('id')]))
+        ->get('/missing', fn (Request $req) => Response::view('missing'));
+
+      $response = $this->send($app, 'GET', '/users/%3Cb%3E');
+      $missing = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/missing'));
+    } finally {
+      exec('rm -rf ' . escapeshellarg($dir));
+    }
+
+    $this->assertSame(200, $response->status());
+    $this->assertSame('text/html; charset=utf-8', $response->header('Content-Type'));
+    $this->assertSame('<h1>Hello, &lt;b&gt;</h1>', $response->body());
+    $this->assertSame(500, $missing->status());
+  }
+
+  public function testViewWithoutRendererReturnsInternalServerError(): void
+  {
+    $app = (new App())->get('/', fn (Request $req) => Response::view('index'));
+
+    $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
+
+    $this->assertSame(500, $response->status());
+  }
+
+  public function testUseRendererReplacesTemplateEngine(): void
+  {
+    $app = (new App())
+      ->useRenderer(new class () implements Renderer {
+        public function render(string $name, array $data): string
+        {
+          return "custom:{$name}";
+        }
+      })
+      ->get('/', fn (Request $req) => Response::view('index', status: 201));
+
+    $response = $this->send($app, 'GET', '/');
+
+    $this->assertSame(201, $response->status());
+    $this->assertSame('custom:index', $response->body());
   }
 
   private function send(App $app, string $method, string $target, string $body = ''): Response
