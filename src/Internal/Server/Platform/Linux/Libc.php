@@ -90,14 +90,14 @@ final class Libc
    */
   public function listenTcp(string $host, int $port, int $backlog): int
   {
-    $fd = $this->check($this->call('socket', self::AF_INET, self::SOCK_STREAM | self::SOCK_NONBLOCK | self::SOCK_CLOEXEC, 0), 'socket');
+    $fd = $this->syscall('socket', self::AF_INET, self::SOCK_STREAM | self::SOCK_NONBLOCK | self::SOCK_CLOEXEC, 0);
 
     try {
-      $this->check($this->call('setsockopt', $fd, self::SOL_SOCKET, self::SO_REUSEADDR, pack('l', 1), 4), 'setsockopt');
+      $this->syscall('setsockopt', $fd, self::SOL_SOCKET, self::SO_REUSEADDR, pack('l', 1), 4);
 
       $addr = $this->sockaddr($host, $port);
       $this->check($this->call('bind', $fd, $addr, strlen($addr)), "bind {$host}:{$port}");
-      $this->check($this->call('listen', $fd, $backlog), 'listen');
+      $this->syscall('listen', $fd, $backlog);
     } catch (SocketException $e) {
       $this->close($fd);
       throw $e;
@@ -114,7 +114,7 @@ final class Libc
     $addr = $this->new('char[' . self::SOCKADDR_IN_SIZE . ']');
     $len = $this->new('socklen_t[1]');
     $len[0] = self::SOCKADDR_IN_SIZE;
-    $this->check($this->call('getsockname', $fd, $addr, $len), 'getsockname');
+    $this->syscall('getsockname', $fd, $addr, $len);
 
     $bytes = FFI::string($addr, self::SOCKADDR_IN_SIZE);
     $ip = inet_ntop(substr($bytes, 4, 4));
@@ -202,7 +202,7 @@ final class Libc
    */
   public function epollCreate(): int
   {
-    return $this->check($this->call('epoll_create1', self::EPOLL_CLOEXEC), 'epoll_create1');
+    return $this->syscall('epoll_create1', self::EPOLL_CLOEXEC);
   }
 
   /**
@@ -286,6 +286,16 @@ final class Libc
   private function call(string $function, mixed ...$args): mixed
   {
     return $this->ffi->{$function}(...$args);
+  }
+
+  /**
+   * call() + check() のショートハンド。関数名をそのままエラー時の操作名に使う
+   *
+   * @throws SocketException
+   */
+  private function syscall(string $function, mixed ...$args): int
+  {
+    return $this->check($this->call($function, ...$args), $function);
   }
 
   /**
