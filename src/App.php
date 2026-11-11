@@ -9,7 +9,9 @@ use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Internal\Config\Config;
 use Urassh\Phalcon\Internal\Http\HttpProtocol;
 use Urassh\Phalcon\Internal\Routing\Router;
-use Urassh\Phalcon\Internal\Server\Server;
+use Urassh\Phalcon\Internal\Server\EventLoop;
+use Urassh\Phalcon\Internal\Server\Platform\PlatformFactory;
+use Urassh\Phalcon\Internal\Server\Platform\SystemClock;
 use Urassh\Phalcon\Internal\View\PhpRenderer;
 
 final class App
@@ -133,7 +135,12 @@ final class App
     $host ??= $this->config->host() ?? self::DEFAULT_HOST;
     $port ??= $this->config->port() ?? self::DEFAULT_PORT;
 
-    $server = new Server("tcp://{$host}:{$port}", new HttpProtocol($this->router));
-    $server->run();
+    $platform = PlatformFactory::detect();
+    $listener = $platform->listen($host, $port);
+
+    echo "Listening on {$listener->localAddress()}\n";
+
+    $loop = new EventLoop($listener, $platform->createPoller(), new HttpProtocol($this->router), new SystemClock());
+    $loop->run();
   }
 }
