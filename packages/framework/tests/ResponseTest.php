@@ -7,31 +7,23 @@ namespace Urassh\Phalcon\Tests;
 use JsonException;
 use LogicException;
 use PHPUnit\Framework\TestCase;
+use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Response;
 
 final class ResponseTest extends TestCase
 {
-  public function testToStringBuildsHttpResponseWithContentLength(): void
+  public function testToPsrCopiesStatusHeadersAndBody(): void
   {
-    $response = Response::text("hello\n");
+    $response = Response::text("hello\n", 404)->withHeader('X-Test', '1')->toPsr(new Psr17Factory());
 
+    $this->assertSame(404, $response->getStatusCode());
+    $this->assertSame('Not Found', $response->getReasonPhrase());
     $this->assertSame(
-      "HTTP/1.1 200 OK\r\n"
-        . "Content-Type: text/plain; charset=utf-8\r\n"
-        . "Content-Length: 6\r\n"
-        . "Connection: close\r\n"
-        . "\r\n"
-        . "hello\n",
-      $response->toString(),
+      ['Content-Type' => ['text/plain; charset=utf-8'], 'X-Test' => ['1']],
+      $response->getHeaders(),
     );
-  }
-
-  public function testToStringUsesGivenStatus(): void
-  {
-    $response = Response::text("Bad Request\n", 400);
-
-    $this->assertStringStartsWith("HTTP/1.1 400 Bad Request\r\n", $response->toString());
+    $this->assertSame("hello\n", (string) $response->getBody());
   }
 
   public function testHtmlSetsContentType(): void
@@ -80,24 +72,9 @@ final class ResponseTest extends TestCase
 
   public function testWithHeaderReplacesSameNameCaseInsensitively(): void
   {
-    $response = Response::text('x')->withHeader('content-type', 'text/csv');
+    $response = Response::text('x')->withHeader('content-type', 'text/csv')->toPsr(new Psr17Factory());
 
-    $this->assertSame(
-      "HTTP/1.1 200 OK\r\ncontent-type: text/csv\r\nContent-Length: 1\r\nConnection: close\r\n\r\nx",
-      $response->toString(),
-    );
-  }
-
-  public function testManagedHeadersCannotBeOverridden(): void
-  {
-    $response = Response::text('abc')
-      ->withHeader('Content-Length', '999')
-      ->withHeader('Connection', 'keep-alive');
-
-    $this->assertSame(
-      "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: 3\r\nConnection: close\r\n\r\nabc",
-      $response->toString(),
-    );
+    $this->assertSame(['content-type' => ['text/csv']], $response->getHeaders());
   }
 
   public function testViewIsRenderedWithRenderer(): void
@@ -122,10 +99,10 @@ final class ResponseTest extends TestCase
     $this->assertSame('users/show:{"name":"urassh"}', $rendered->body());
   }
 
-  public function testToStringThrowsOnUnrenderedView(): void
+  public function testToPsrThrowsOnUnrenderedView(): void
   {
     $this->expectException(LogicException::class);
 
-    Response::view('index')->toString();
+    Response::view('index')->toPsr(new Psr17Factory());
   }
 }

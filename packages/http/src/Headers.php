@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Http;
+namespace Urassh\Phalcon\Http;
 
 /**
  * @internal
@@ -11,9 +11,11 @@ final class Headers
 {
   /**
    * @param array<string, list<string>> $values 小文字化したヘッダ名 => 値のリスト
+   * @param array<string, string> $names 小文字化したヘッダ名 => 最初に現れたときの綴り
    */
   private function __construct(
     private readonly array $values,
+    private readonly array $names,
   ) {
   }
 
@@ -23,6 +25,7 @@ final class Headers
   public static function parse(string $raw): self
   {
     $values = [];
+    $names = [];
 
     foreach (explode("\r\n", $raw) as $line) {
       $pos = strpos($line, ':');
@@ -30,15 +33,17 @@ final class Headers
         continue;
       }
 
-      $name = strtolower(trim(substr($line, 0, $pos)));
+      $name = trim(substr($line, 0, $pos));
       if ($name === '') {
         continue;
       }
 
-      $values[$name][] = trim(substr($line, $pos + 1));
+      $key = strtolower($name);
+      $names[$key] ??= $name;
+      $values[$key][] = trim(substr($line, $pos + 1));
     }
 
-    return new self($values);
+    return new self($values, $names);
   }
 
   public function has(string $name): bool
@@ -60,11 +65,24 @@ final class Headers
   }
 
   /**
-   * @return array<string, list<string>>
+   * @return array<string, list<string>> 小文字化したヘッダ名 => 値のリスト
    */
   public function all(): array
   {
     return $this->values;
+  }
+
+  /**
+   * @return array<string, list<string>> 元の綴りのヘッダ名 => 値のリスト
+   */
+  public function withOriginalNames(): array
+  {
+    $headers = [];
+    foreach ($this->values as $key => $values) {
+      $headers[$this->names[$key]] = $values;
+    }
+
+    return $headers;
   }
 
   public function contentLength(): int

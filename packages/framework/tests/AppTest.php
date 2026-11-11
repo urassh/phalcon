@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace Urassh\Phalcon\Tests;
 
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
 use Urassh\Phalcon\App;
+use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
@@ -20,11 +25,11 @@ final class AppTest extends TestCase
       ->get('/', fn (Request $req) => Response::text('top'))
       ->post('/users', fn (Request $req) => Response::text('created', 201));
 
-    $this->assertSame('top', $this->send($app, 'GET', '/')->body());
+    $this->assertSame('top', (string) $this->send($app, 'GET', '/')->getBody());
 
     $response = $this->send($app, 'POST', '/users');
-    $this->assertSame(201, $response->status());
-    $this->assertSame('created', $response->body());
+    $this->assertSame(201, $response->getStatusCode());
+    $this->assertSame('created', (string) $response->getBody());
   }
 
   public function testEachMethodHelperRegistersItsMethod(): void
@@ -36,7 +41,7 @@ final class AppTest extends TestCase
     $app->route('options', '/', fn (Request $req) => Response::text($req->method()));
 
     foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] as $method) {
-      $this->assertSame($method, $this->send($app, $method, '/')->body());
+      $this->assertSame($method, (string) $this->send($app, $method, '/')->getBody());
     }
   }
 
@@ -47,30 +52,30 @@ final class AppTest extends TestCase
       fn (Request $req) => Response::text("{$req->param('id')}:{$req->param('post_id')}"),
     );
 
-    $this->assertSame('42:hello world', $this->send($app, 'GET', '/users/42/posts/hello%20world')->body());
+    $this->assertSame('42:hello world', (string) $this->send($app, 'GET', '/users/42/posts/hello%20world')->getBody());
   }
 
   public function testParamDoesNotMatchAcrossSegments(): void
   {
     $app = (new App())->get('/users/{id}', fn (Request $req) => Response::text('ok'));
 
-    $this->assertSame(404, $this->send($app, 'GET', '/users/1/2')->status());
-    $this->assertSame(404, $this->send($app, 'GET', '/users/')->status());
+    $this->assertSame(404, $this->send($app, 'GET', '/users/1/2')->getStatusCode());
+    $this->assertSame(404, $this->send($app, 'GET', '/users/')->getStatusCode());
   }
 
   public function testIgnoresQueryStringWhenMatching(): void
   {
     $app = (new App())->get('/search', fn (Request $req) => Response::text((string) $req->query('q')));
 
-    $this->assertSame('php', $this->send($app, 'GET', '/search?q=php')->body());
+    $this->assertSame('php', (string) $this->send($app, 'GET', '/search?q=php')->getBody());
   }
 
   public function testLiteralPartsAreNotTreatedAsRegex(): void
   {
     $app = (new App())->get('/a.b', fn (Request $req) => Response::text('ok'));
 
-    $this->assertSame(200, $this->send($app, 'GET', '/a.b')->status());
-    $this->assertSame(404, $this->send($app, 'GET', '/axb')->status());
+    $this->assertSame(200, $this->send($app, 'GET', '/a.b')->getStatusCode());
+    $this->assertSame(404, $this->send($app, 'GET', '/axb')->getStatusCode());
   }
 
   public function testFirstRegisteredRouteWins(): void
@@ -79,8 +84,8 @@ final class AppTest extends TestCase
       ->get('/users/me', fn (Request $req) => Response::text('me'))
       ->get('/users/{id}', fn (Request $req) => Response::text('id'));
 
-    $this->assertSame('me', $this->send($app, 'GET', '/users/me')->body());
-    $this->assertSame('id', $this->send($app, 'GET', '/users/1')->body());
+    $this->assertSame('me', (string) $this->send($app, 'GET', '/users/me')->getBody());
+    $this->assertSame('id', (string) $this->send($app, 'GET', '/users/1')->getBody());
   }
 
   public function testAcceptsInvokableAndArrayCallables(): void
@@ -101,15 +106,15 @@ final class AppTest extends TestCase
       ->get('/invoke', $controller)
       ->get('/show', [$controller, 'show']);
 
-    $this->assertSame('invoke', $this->send($app, 'GET', '/invoke')->body());
-    $this->assertSame('show', $this->send($app, 'GET', '/show')->body());
+    $this->assertSame('invoke', (string) $this->send($app, 'GET', '/invoke')->getBody());
+    $this->assertSame('show', (string) $this->send($app, 'GET', '/show')->getBody());
   }
 
   public function testReturnsNotFoundWhenNoRouteMatches(): void
   {
     $app = (new App())->get('/', fn (Request $req) => Response::text('ok'));
 
-    $this->assertSame(404, $this->send($app, 'GET', '/missing')->status());
+    $this->assertSame(404, $this->send($app, 'GET', '/missing')->getStatusCode());
   }
 
   public function testReturnsMethodNotAllowedWithAllowHeader(): void
@@ -122,16 +127,16 @@ final class AppTest extends TestCase
 
     $response = $this->send($app, 'POST', '/users/1');
 
-    $this->assertSame(405, $response->status());
-    $this->assertSame('GET, PUT, DELETE', $response->header('Allow'));
+    $this->assertSame(405, $response->getStatusCode());
+    $this->assertSame('GET, PUT, DELETE', $response->getHeaderLine('Allow'));
   }
 
   public function testReturnsBadRequestOnMalformedJson(): void
   {
     $app = (new App())->post('/', fn (Request $req) => Response::json($req->json()));
 
-    $this->assertSame(400, $this->send($app, 'POST', '/', '{')->status());
-    $this->assertSame('{"a":1}', $this->send($app, 'POST', '/', '{"a":1}')->body());
+    $this->assertSame(400, $this->send($app, 'POST', '/', '{')->getStatusCode());
+    $this->assertSame('{"a":1}', (string) $this->send($app, 'POST', '/', '{"a":1}')->getBody());
   }
 
   public function testReturnsInternalServerErrorWhenHandlerThrows(): void
@@ -142,8 +147,8 @@ final class AppTest extends TestCase
 
     $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
 
-    $this->assertSame(500, $response->status());
-    $this->assertStringNotContainsString('secret detail', $response->body());
+    $this->assertSame(500, $response->getStatusCode());
+    $this->assertStringNotContainsString('secret detail', (string) $response->getBody());
   }
 
   public function testReturnsInternalServerErrorWhenHandlerReturnsNonResponse(): void
@@ -153,7 +158,48 @@ final class AppTest extends TestCase
 
     $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
 
-    $this->assertSame(500, $response->status());
+    $this->assertSame(500, $response->getStatusCode());
+  }
+
+  public function testMiddlewareRunsInOrderAroundRouting(): void
+  {
+    $app = (new App())
+      ->add($this->tagMiddleware('outer'))
+      ->add($this->tagMiddleware('inner'))
+      ->get('/', fn (Request $req) => Response::text((string) $req->header('X-Trace')));
+
+    $response = $this->send($app, 'GET', '/');
+
+    $this->assertSame('outer,inner', (string) $response->getBody());
+    $this->assertSame('inner,outer', $response->getHeaderLine('X-Trace'));
+  }
+
+  public function testMiddlewareCanShortCircuit(): void
+  {
+    $app = (new App())
+      ->add(new class () implements MiddlewareInterface {
+        public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+        {
+          return (new Psr17Factory())->createResponse(401);
+        }
+      })
+      ->get('/', fn (Request $req) => Response::text('unreachable'));
+
+    $this->assertSame(401, $this->send($app, 'GET', '/')->getStatusCode());
+  }
+
+  public function testMiddlewareAttributesAreVisibleFromRequest(): void
+  {
+    $app = (new App())
+      ->add(new class () implements MiddlewareInterface {
+        public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+        {
+          return $handler->handle($request->withAttribute('user', 'urassh'));
+        }
+      })
+      ->get('/', fn (Request $req) => Response::text((string) $req->param('user')));
+
+    $this->assertSame('urassh', (string) $this->send($app, 'GET', '/')->getBody());
   }
 
   public function testConfigReturnsNullWithoutConfigFile(): void
@@ -202,10 +248,10 @@ final class AppTest extends TestCase
       exec('rm -rf ' . escapeshellarg($dir));
     }
 
-    $this->assertSame(200, $response->status());
-    $this->assertSame('text/html; charset=utf-8', $response->header('Content-Type'));
-    $this->assertSame('<h1>Hello, &lt;b&gt;</h1>', $response->body());
-    $this->assertSame(500, $missing->status());
+    $this->assertSame(200, $response->getStatusCode());
+    $this->assertSame('text/html; charset=utf-8', $response->getHeaderLine('Content-Type'));
+    $this->assertSame('<h1>Hello, &lt;b&gt;</h1>', (string) $response->getBody());
+    $this->assertSame(500, $missing->getStatusCode());
   }
 
   public function testViewWithoutRendererReturnsInternalServerError(): void
@@ -214,7 +260,7 @@ final class AppTest extends TestCase
 
     $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
 
-    $this->assertSame(500, $response->status());
+    $this->assertSame(500, $response->getStatusCode());
   }
 
   public function testUseRendererReplacesTemplateEngine(): void
@@ -230,21 +276,47 @@ final class AppTest extends TestCase
 
     $response = $this->send($app, 'GET', '/');
 
-    $this->assertSame(201, $response->status());
-    $this->assertSame('custom:index', $response->body());
-  }
-
-  private function send(App $app, string $method, string $target, string $body = ''): Response
-  {
-    $length = strlen($body);
-
-    return $app->handle(Request::parse("{$method} {$target} HTTP/1.1\r\nContent-Length: {$length}\r\n\r\n{$body}"));
+    $this->assertSame(201, $response->getStatusCode());
+    $this->assertSame('custom:index', (string) $response->getBody());
   }
 
   /**
-   * @param callable(): Response $fn
+   * リクエストの X-Trace に名前を足してから次へ渡し、レスポンスの X-Trace にも名前を足す
    */
-  private function silenceErrorLog(callable $fn): Response
+  private function tagMiddleware(string $name): MiddlewareInterface
+  {
+    return new class ($name) implements MiddlewareInterface {
+      public function __construct(
+        private readonly string $name,
+      ) {
+      }
+
+      public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+      {
+        $response = $handler->handle($request->withHeader('X-Trace', $this->append($request->getHeaderLine('X-Trace'))));
+
+        return $response->withHeader('X-Trace', $this->append($response->getHeaderLine('X-Trace')));
+      }
+
+      private function append(string $trace): string
+      {
+        return $trace === '' ? $this->name : "{$trace},{$this->name}";
+      }
+    };
+  }
+
+  private function send(App $app, string $method, string $target, string $body = ''): ResponseInterface
+  {
+    $factory = new Psr17Factory();
+    $request = $factory->createServerRequest($method, $target)->withBody($factory->createStream($body));
+
+    return $app->handle($request);
+  }
+
+  /**
+   * @param callable(): ResponseInterface $fn
+   */
+  private function silenceErrorLog(callable $fn): ResponseInterface
   {
     $previous = ini_set('error_log', '/dev/null');
     try {

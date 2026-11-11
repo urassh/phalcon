@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Http;
+namespace Urassh\Phalcon\Http\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Internal\Http\Headers;
+use Urassh\Phalcon\Http\Headers;
 
 final class HeadersTest extends TestCase
 {
@@ -53,6 +53,13 @@ final class HeadersTest extends TestCase
     $headers = Headers::parse("garbage\r\n: no-name\r\nHost: localhost");
 
     $this->assertSame(['host' => ['localhost']], $headers->all());
+  }
+
+  public function testWithOriginalNamesKeepsFirstSpelling(): void
+  {
+    $headers = Headers::parse("X-Token: a\r\nx-token: b\r\nHost: localhost");
+
+    $this->assertSame(['X-Token' => ['a', 'b'], 'Host' => ['localhost']], $headers->withOriginalNames());
   }
 
   public function testContentLength(): void

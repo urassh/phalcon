@@ -5,23 +5,29 @@ declare(strict_types=1);
 namespace Urassh\Phalcon;
 
 use Closure;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\MiddlewareInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Internal\Config\Config;
-use Urassh\Phalcon\Internal\Http\HttpProtocol;
+use Urassh\Phalcon\Internal\Middleware\Pipeline;
 use Urassh\Phalcon\Internal\Routing\Router;
-use Urassh\Phalcon\Internal\Server\EventLoop;
-use Urassh\Phalcon\Internal\Server\Platform\PlatformFactory;
-use Urassh\Phalcon\Internal\Server\Platform\SystemClock;
+use Urassh\Phalcon\Internal\Routing\RouterHandler;
 use Urassh\Phalcon\Internal\View\PhpRenderer;
 
-final class App
+/**
+ * ルートを登録して PSR-15 のハンドラとして動く。起動は urassh/phalcon-http の HttpServer などに任せる
+ */
+final class App implements RequestHandlerInterface
 {
-  private const DEFAULT_HOST = '0.0.0.0';
-  private const DEFAULT_PORT = 8080;
-
   private readonly Router $router;
 
   private Config $config;
+
+  /** @var list<MiddlewareInterface> */
+  private array $middleware = [];
 
   public function __construct()
   {
@@ -116,31 +122,22 @@ final class App
   }
 
   /**
-   * リクエストを 1 件処理する。サーバを立てずにルーティングを確かめたいとき用
-   *
-   * @internal
+   * ミドルウェアを追加する。先に追加したものほど外側で動く
    */
-  public function handle(Request $request): Response
+  public function add(MiddlewareInterface $middleware): self
   {
-    return $this->router->handle($request);
+    $this->middleware[] = $middleware;
+
+    return $this;
   }
 
   /**
-   * サーバを起動する。プロセスが終了するまで戻らない
-   *
-   * 値の優先順位は 引数 > 設定ファイル > デフォルト値
+   * リクエストを 1 件処理する。ミドルウェアを通してからルーティングする
    */
-  public function serve(?string $host = null, ?int $port = null): void
+  public function handle(ServerRequestInterface $request): ResponseInterface
   {
-    $host ??= $this->config->host() ?? self::DEFAULT_HOST;
-    $port ??= $this->config->port() ?? self::DEFAULT_PORT;
+    $handler = new Pipeline($this->middleware, new RouterHandler($this->router, new Psr17Factory()));
 
-    $platform = PlatformFactory::detect();
-    $listener = $platform->listen($host, $port);
-
-    echo "Listening on {$listener->localAddress()}\n";
-
-    $loop = new EventLoop($listener, $platform->createPoller(), new HttpProtocol($this->router), new SystemClock());
-    $loop->run();
+    return $handler->handle($request);
   }
 }

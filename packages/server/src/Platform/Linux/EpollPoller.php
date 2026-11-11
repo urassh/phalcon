@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\Linux;
+namespace Urassh\Phalcon\Server\Platform\Linux;
 
 use FFI\CData;
-use Urassh\Phalcon\Internal\Server\Port\Poller;
-use Urassh\Phalcon\Internal\Server\Port\Readiness;
+use Urassh\Phalcon\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\Readiness;
 
 /**
  * @internal

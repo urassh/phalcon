@@ -8,7 +8,6 @@ use Closure;
 use Throwable;
 use UnexpectedValueException;
 use Urassh\Phalcon\Internal\Http\BadRequestException;
-use Urassh\Phalcon\Internal\Http\RequestHandler;
 use Urassh\Phalcon\Internal\View\ViewException;
 use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
@@ -17,7 +16,7 @@ use Urassh\Phalcon\Response;
 /**
  * @internal
  */
-final class Router implements RequestHandler
+final class Router
 {
   /** @var list<Route> */
   private array $routes = [];

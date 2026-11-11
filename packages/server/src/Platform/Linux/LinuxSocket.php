@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\Linux;
+namespace Urassh\Phalcon\Server\Platform\Linux;
 
-use Urassh\Phalcon\Internal\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\Socket;
 
 /**
  * @internal

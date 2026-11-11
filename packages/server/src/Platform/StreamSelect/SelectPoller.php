@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\StreamSelect;
+namespace Urassh\Phalcon\Server\Platform\StreamSelect;
 
-use Urassh\Phalcon\Internal\Server\Port\Poller;
-use Urassh\Phalcon\Internal\Server\Port\Readiness;
+use Urassh\Phalcon\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\Readiness;
 
 /**
  * @internal

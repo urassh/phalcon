@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server\Platform;
+namespace Urassh\Phalcon\Server\Tests\Platform;
 
-use Urassh\Phalcon\Internal\Server\Platform\Linux\Libc;
-use Urassh\Phalcon\Internal\Server\Platform\Linux\LinuxPlatform;
-use Urassh\Phalcon\Internal\Server\Port\Platform;
+use Urassh\Phalcon\Server\Platform\Linux\Libc;
+use Urassh\Phalcon\Server\Platform\Linux\LinuxPlatform;
+use Urassh\Phalcon\Server\Port\Platform;
 
 final class LinuxPlatformTest extends PlatformContractTestCase
 {

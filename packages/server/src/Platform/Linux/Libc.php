@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\Linux;
+namespace Urassh\Phalcon\Server\Platform\Linux;
 
 use FFI;
 use FFI\CData;
-use Urassh\Phalcon\Internal\Server\Port\SocketException;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 /**
  * FFI で呼ぶ glibc の関数と、Linux の定数
@@ -280,7 +280,12 @@ final class Libc
 
   private function new(string $type): CData
   {
-    return $this->ffi->new($type);
+    $data = $this->ffi->new($type);
+    if ($data === null) {
+      throw new SocketException("Unable to allocate {$type}");
+    }
+
+    return $data;
   }
 
   private function call(string $function, mixed ...$args): mixed

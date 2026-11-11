@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server;
+namespace Urassh\Phalcon\Server\Tests;
 
-use Urassh\Phalcon\Internal\Server\Port\Poller;
-use Urassh\Phalcon\Internal\Server\Port\Readiness;
+use Urassh\Phalcon\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\Readiness;
 
 final class FakePoller implements Poller
 {

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server;
+namespace Urassh\Phalcon\Server\Tests;
 
-use Urassh\Phalcon\Internal\Server\Port\ListeningSocket;
-use Urassh\Phalcon\Internal\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\ListeningSocket;
+use Urassh\Phalcon\Server\Port\Socket;
 
 final class FakeListeningSocket implements ListeningSocket
 {

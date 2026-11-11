@@ -2,12 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Port;
+namespace Urassh\Phalcon\Server\Port;
 
 /**
  * OS ごとに異なるソケットと I/O 多重化の実装をまとめて提供する
- *
- * @internal
  */
 interface Platform
 {

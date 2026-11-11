@@ -2,11 +2,8 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Port;
+namespace Urassh\Phalcon\Server\Port;
 
-/**
- * @internal
- */
 final class Readiness
 {
   /**

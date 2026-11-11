@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server;
+namespace Urassh\Phalcon\Server\Tests;
 
-use Urassh\Phalcon\Internal\Server\Port\Clock;
+use Urassh\Phalcon\Server\Port\Clock;
 
 final class FakeClock implements Clock
 {

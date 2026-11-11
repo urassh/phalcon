@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server;
+namespace Urassh\Phalcon\Server\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Internal\Server\EventLoop;
-use Urassh\Phalcon\Internal\Server\Port\Readiness;
+use Urassh\Phalcon\Server\EventLoop;
+use Urassh\Phalcon\Server\Port\Readiness;
 
 final class EventLoopTest extends TestCase
 {

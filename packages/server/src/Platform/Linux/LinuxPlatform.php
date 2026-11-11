@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\Linux;
+namespace Urassh\Phalcon\Server\Platform\Linux;
 
-use Urassh\Phalcon\Internal\Server\Port\ListeningSocket;
-use Urassh\Phalcon\Internal\Server\Port\Platform;
-use Urassh\Phalcon\Internal\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\ListeningSocket;
+use Urassh\Phalcon\Server\Port\Platform;
+use Urassh\Phalcon\Server\Port\Poller;
 
 /**
  * epoll (エッジトリガ) と FFI 経由のソケット

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server\Platform;
+namespace Urassh\Phalcon\Server\Tests\Platform;
 
-use Urassh\Phalcon\Internal\Server\Platform\StreamSelect\StreamSelectPlatform;
-use Urassh\Phalcon\Internal\Server\Port\Platform;
+use Urassh\Phalcon\Server\Platform\StreamSelect\StreamSelectPlatform;
+use Urassh\Phalcon\Server\Port\Platform;
 
 final class StreamSelectPlatformTest extends PlatformContractTestCase
 {

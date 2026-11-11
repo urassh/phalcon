@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\StreamSelect;
+namespace Urassh\Phalcon\Server\Platform\StreamSelect;
 
 /**
  * ソケットと Poller が共有する、ストリームと通知の待ち状態の表

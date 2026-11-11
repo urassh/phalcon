@@ -2,13 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform;
+namespace Urassh\Phalcon\Server\Platform;
 
-use Urassh\Phalcon\Internal\Server\Port\Clock;
+use Urassh\Phalcon\Server\Port\Clock;
 
-/**
- * @internal
- */
 final class SystemClock implements Clock
 {
   public function nowMs(): int

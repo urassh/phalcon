@@ -5,30 +5,11 @@ declare(strict_types=1);
 namespace Urassh\Phalcon;
 
 use LogicException;
+use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\ResponseInterface;
 
 final class Response
 {
-  private const REASON_PHRASES = [
-    200 => 'OK',
-    201 => 'Created',
-    204 => 'No Content',
-    301 => 'Moved Permanently',
-    302 => 'Found',
-    303 => 'See Other',
-    304 => 'Not Modified',
-    400 => 'Bad Request',
-    401 => 'Unauthorized',
-    403 => 'Forbidden',
-    404 => 'Not Found',
-    405 => 'Method Not Allowed',
-    409 => 'Conflict',
-    422 => 'Unprocessable Content',
-    500 => 'Internal Server Error',
-  ];
-
-  /** サーバが自動で付けるため、利用者の指定は無視するヘッダ */
-  private const MANAGED_HEADERS = ['content-length', 'connection'];
-
   /**
    * @param array<string, array{string, string}> $headers 小文字化したヘッダ名 => [元の名前, 値]
    * @param array{string, array<string, mixed>}|null $view 未描画のテンプレート [名前, データ]
@@ -132,27 +113,23 @@ final class Response
     return $this->body;
   }
 
-  /** @internal */
-  public function toString(): string
+  /**
+   * PSR-7 のレスポンスに変換する。View は先に render() で描画しておく
+   *
+   * @internal
+   */
+  public function toPsr(ResponseFactoryInterface $factory): ResponseInterface
   {
     if ($this->view !== null) {
       throw new LogicException("View '{$this->view[0]}' has not been rendered");
     }
 
-    $reason = self::REASON_PHRASES[$this->status] ?? '';
-
-    $head = "HTTP/1.1 {$this->status} {$reason}\r\n";
-    foreach ($this->headers as $key => [$name, $value]) {
-      if (in_array($key, self::MANAGED_HEADERS, true)) {
-        continue;
-      }
-      $head .= "{$name}: {$value}\r\n";
+    $response = $factory->createResponse($this->status);
+    foreach ($this->headers as [$name, $value]) {
+      $response = $response->withHeader($name, $value);
     }
+    $response->getBody()->write($this->body);
 
-    return $head
-      . 'Content-Length: ' . strlen($this->body) . "\r\n"
-      . "Connection: close\r\n"
-      . "\r\n"
-      . $this->body;
+    return $response;
   }
 }

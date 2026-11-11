@@ -2,17 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform;
+namespace Urassh\Phalcon\Server\Platform;
 
 use FFI;
-use Urassh\Phalcon\Internal\Server\Platform\Linux\Libc;
-use Urassh\Phalcon\Internal\Server\Platform\Linux\LinuxPlatform;
-use Urassh\Phalcon\Internal\Server\Platform\StreamSelect\StreamSelectPlatform;
-use Urassh\Phalcon\Internal\Server\Port\Platform;
+use Urassh\Phalcon\Server\Platform\Linux\Libc;
+use Urassh\Phalcon\Server\Platform\Linux\LinuxPlatform;
+use Urassh\Phalcon\Server\Platform\StreamSelect\StreamSelectPlatform;
+use Urassh\Phalcon\Server\Port\Platform;
 
-/**
- * @internal
- */
 final class PlatformFactory
 {
   /**

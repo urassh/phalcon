@@ -2,17 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server;
+namespace Urassh\Phalcon\Server;
 
-use Urassh\Phalcon\Internal\Server\Port\Clock;
-use Urassh\Phalcon\Internal\Server\Port\ListeningSocket;
-use Urassh\Phalcon\Internal\Server\Port\Poller;
-use Urassh\Phalcon\Internal\Server\Port\SocketException;
+use Urassh\Phalcon\Server\Port\Clock;
+use Urassh\Phalcon\Server\Port\ListeningSocket;
+use Urassh\Phalcon\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 /**
  * Poller の通知を受けて、接続の受け付けと各接続の読み書きを振り分ける
- *
- * @internal
  */
 final class EventLoop
 {

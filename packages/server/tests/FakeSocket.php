@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server;
+namespace Urassh\Phalcon\Server\Tests;
 
-use Urassh\Phalcon\Internal\Server\Port\Socket;
-use Urassh\Phalcon\Internal\Server\Port\SocketException;
+use Urassh\Phalcon\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 final class FakeSocket implements Socket
 {

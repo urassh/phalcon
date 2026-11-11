@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Http;
+namespace Urassh\Phalcon\Http\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Urassh\Phalcon\Internal\Http\HttpProtocol;
-use Urassh\Phalcon\Request;
-use Urassh\Phalcon\Internal\Http\RequestHandler;
-use Urassh\Phalcon\Response;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use RuntimeException;
+use Urassh\Phalcon\Core\Response;
+use Urassh\Phalcon\Http\HttpProtocol;
 
 final class HttpProtocolTest extends TestCase
 {
@@ -55,8 +57,8 @@ final class HttpProtocolTest extends TestCase
     $protocol = $this->createProtocol();
 
     $this->assertSame(
-      Response::text('GET /')->toString(),
-      $protocol->respond("GET / HTTP/1.1\r\n\r\n"),
+      "HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nPOST /a?b=1 x",
+      $protocol->respond("POST /a?b=1 HTTP/1.1\r\nContent-Length: 1\r\n\r\nx"),
     );
   }
 
@@ -65,17 +67,42 @@ final class HttpProtocolTest extends TestCase
     $protocol = $this->createProtocol();
 
     $this->assertSame(
-      Response::text("Bad Request\n", 400)->toString(),
+      "HTTP/1.1 400 Bad Request\r\n"
+        . "Content-Type: text/plain; charset=utf-8\r\n"
+        . "Content-Length: 12\r\n"
+        . "Connection: close\r\n"
+        . "\r\n"
+        . "Bad Request\n",
       $protocol->respond("garbage\r\n\r\n"),
     );
   }
 
+  public function testRespondReturnsInternalServerErrorWhenHandlerThrows(): void
+  {
+    $protocol = new HttpProtocol(new class () implements RequestHandlerInterface {
+      public function handle(ServerRequestInterface $request): ResponseInterface
+      {
+        throw new RuntimeException('secret detail');
+      }
+    });
+
+    $previous = ini_set('error_log', '/dev/null');
+    try {
+      $response = $protocol->respond("GET / HTTP/1.1\r\n\r\n");
+    } finally {
+      ini_set('error_log', $previous === false ? '' : $previous);
+    }
+
+    $this->assertStringStartsWith("HTTP/1.1 500 Internal Server Error\r\n", $response);
+    $this->assertStringNotContainsString('secret detail', $response);
+  }
+
   private function createProtocol(): HttpProtocol
   {
-    return new HttpProtocol(new class implements RequestHandler {
-      public function handle(Request $request): Response
+    return new HttpProtocol(new class () implements RequestHandlerInterface {
+      public function handle(ServerRequestInterface $request): ResponseInterface
       {
-        return Response::text("{$request->method()} {$request->target()}");
+        return new Response(body: "{$request->getMethod()} {$request->getRequestTarget()} {$request->getBody()}");
       }
     });
   }

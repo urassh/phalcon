@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Tests\Internal\Server\Platform;
+namespace Urassh\Phalcon\Server\Tests\Platform;
 
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Urassh\Phalcon\Internal\Server\Port\ListeningSocket;
-use Urassh\Phalcon\Internal\Server\Port\Platform;
-use Urassh\Phalcon\Internal\Server\Port\Poller;
-use Urassh\Phalcon\Internal\Server\Port\Readiness;
-use Urassh\Phalcon\Internal\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\ListeningSocket;
+use Urassh\Phalcon\Server\Port\Platform;
+use Urassh\Phalcon\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\Readiness;
+use Urassh\Phalcon\Server\Port\Socket;
 
 /**
  * どの Platform の実装も満たすべき約束を、実際のループバック接続で確かめる

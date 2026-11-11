@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\StreamSelect;
+namespace Urassh\Phalcon\Server\Platform\StreamSelect;
 
-use Urassh\Phalcon\Internal\Server\Port\ListeningSocket;
-use Urassh\Phalcon\Internal\Server\Port\Platform;
-use Urassh\Phalcon\Internal\Server\Port\Poller;
-use Urassh\Phalcon\Internal\Server\Port\SocketException;
+use Urassh\Phalcon\Server\Port\ListeningSocket;
+use Urassh\Phalcon\Server\Port\Platform;
+use Urassh\Phalcon\Server\Port\Poller;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 /**
  * PHP のストリームと stream_select による、どの OS でも動く実装

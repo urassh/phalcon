@@ -2,12 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Port;
+namespace Urassh\Phalcon\Server\Port;
 
 /**
  * ノンブロッキングの待ち受けソケット
- *
- * @internal
  */
 interface ListeningSocket
 {

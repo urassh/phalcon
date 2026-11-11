@@ -2,14 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Port;
+namespace Urassh\Phalcon\Server\Port;
 
 /**
  * エッジトリガで fd の状態変化を通知する
  *
  * 状態が変わったときにだけ通知するので、利用側は WouldBlock になるまで読み書きしきること
- *
- * @internal
  */
 interface Poller
 {

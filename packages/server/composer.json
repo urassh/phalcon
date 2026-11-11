@@ -1,0 +1,40 @@
+{
+    "name": "urassh/phalcon-server",
+    "description": "Protocol-agnostic event loop and socket platforms (epoll via FFI / stream_select)",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "urassh"
+        }
+    ],
+    "require": {
+        "php": "^8.3"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^11.0"
+    },
+    "suggest": {
+        "ext-ffi": "Uses epoll on Linux instead of stream_select"
+    },
+    "autoload": {
+        "psr-4": {
+            "Urassh\\Phalcon\\Server\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Urassh\\Phalcon\\Server\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

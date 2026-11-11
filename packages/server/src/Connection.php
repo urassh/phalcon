@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server;
+namespace Urassh\Phalcon\Server;
 
-use Urassh\Phalcon\Internal\Server\Port\Socket;
-use Urassh\Phalcon\Internal\Server\Port\SocketException;
+use Urassh\Phalcon\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 /**
  * 1 つの接続の状態 (受信中 → 送信中 → 終了) を管理する

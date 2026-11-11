@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Urassh\Phalcon\Internal\Server\Platform\StreamSelect;
+namespace Urassh\Phalcon\Server\Platform\StreamSelect;
 
-use Urassh\Phalcon\Internal\Server\Port\Socket;
-use Urassh\Phalcon\Internal\Server\Port\SocketException;
+use Urassh\Phalcon\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 /**
  * @internal
