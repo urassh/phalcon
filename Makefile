@@ -1,6 +1,6 @@
 DC := docker compose run --rm php
 
-.PHONY: build install update test analyse shell
+.PHONY: build install update test analyse smoke shell
 
 build:
 	docker compose build
@@ -16,6 +16,9 @@ test:
 
 analyse:
 	$(DC) composer analyse
+
+smoke:
+	$(DC) sh scripts/smoke.sh
 
 shell:
 	$(DC) bash
