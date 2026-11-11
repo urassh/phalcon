@@ -133,68 +133,68 @@ phalcon/
 
 ### Phase 0: 下準備
 
-- [ ] `psr/http-message` ^2.0, `psr/http-factory` ^1.1, `psr/http-server-handler` ^1.0, `psr/http-server-middleware` ^1.0 を追加
-- [ ] 分割前の動作確認用に、`entrypoint.php` に curl を当てるスモークテスト (`GET /`, `GET /users/42`, `POST /echo`, 404, 405, 不正リクエストで 400) をスクリプトにしておく。以降のフェーズで毎回回す
+- [x] `psr/http-message` ^2.0, `psr/http-factory` ^1.1, `psr/http-server-handler` ^1.0, `psr/http-server-middleware` ^1.0 を追加
+- [x] 分割前の動作確認用に、`entrypoint.php` に curl を当てるスモークテスト (`GET /`, `GET /users/42`, `POST /echo`, 404, 405, 不正リクエストで 400) をスクリプトにしておく。以降のフェーズで毎回回す
 
 ### Phase 1: PSR-7 / PSR-17 の自作実装
 
 まだ `src/` 内で作る (名前空間は最終形の `Urassh\Phalcon\Core\` にしておくと後の移動が楽)。
 
-- [ ] `Stream` (`StreamInterface`): 文字列を持つインメモリ実装。リクエスト全体をバッファしてから処理する今の設計に合わせ、ストリーミングは対象外
-- [ ] `Uri` (`UriInterface`): origin-form / absolute-form のリクエストターゲットから組み立てられること
-- [ ] `Request`, `ServerRequest`, `Response` (`MessageInterface` の共通部分はトレイトか抽象クラスにまとめる)
+- [x] `Stream` (`StreamInterface`): 文字列を持つインメモリ実装。リクエスト全体をバッファしてから処理する今の設計に合わせ、ストリーミングは対象外
+- [x] `Uri` (`UriInterface`): origin-form / absolute-form のリクエストターゲットから組み立てられること
+- [x] `Request`, `ServerRequest`, `Response` (`MessageInterface` の共通部分はトレイトか抽象クラスにまとめる)
   - ヘッダ名の大文字小文字を区別しない比較、元の綴りの保持
   - `withAttribute()` (ルートパラメータの受け渡しに使う)
   - 不変性 (`with*()` は必ず新しいインスタンスを返す)
-- [ ] `UploadedFile` は `ServerRequestInterface` の型を満たすための最小実装にとどめる (multipart のパースはしない)
-- [ ] PSR-17 ファクトリ: `Psr17Factory` 1 クラスで `ResponseFactoryInterface` / `ServerRequestFactoryInterface` / `StreamFactoryInterface` / `UriFactoryInterface` を実装
-- [ ] テスト: 各 `with*()` の不変性、ヘッダの大文字小文字、不正値での `InvalidArgumentException`
+- [x] `UploadedFile` は `ServerRequestInterface` の型を満たすための最小実装にとどめる (multipart のパースはしない)
+- [x] PSR-17 ファクトリ: `Psr17Factory` 1 クラスで `ResponseFactoryInterface` / `ServerRequestFactoryInterface` / `StreamFactoryInterface` / `UriFactoryInterface` を実装
+- [x] テスト: 各 `with*()` の不変性、ヘッダの大文字小文字、不正値での `InvalidArgumentException`
 
 ### Phase 2: HTTP 層を PSR-7 / PSR-15 ベースにする
 
-- [ ] `RequestParser`: 生のバイト列 → `ServerRequestInterface`。`Request::parse()` / `splitHead()` のロジックを移す。不正なリクエストラインは `InvalidArgumentException`
-- [ ] `ResponseSerializer`: `ResponseInterface` → バイト列。`Content-Length` と `Connection: close` はサーバが付け、利用者の指定は無視する (今の `MANAGED_HEADERS` の挙動を維持)
-- [ ] `HttpProtocol` のコンストラクタを `RequestHandlerInterface` に変える。`isComplete()` は `RequestParser` 側の関数を使う
-- [ ] ハンドラが例外を投げたら 500 を返す (今は `Router` だけが捕まえているが、任意の PSR-15 ハンドラを受け付けるならサーバ側にも最後の砦が要る)
-- [ ] `Server` クラス (server 側): `serve(Protocol $protocol, string $host, int $port): never`。今の `App::serve()` の中身 (PlatformFactory → listen → EventLoop) を移す
-- [ ] `HttpServer` クラス (http 側): `serve(RequestHandlerInterface $handler, string $host, int $port): never`。`HttpProtocol` を組み立てて `Server` に渡す
-- [ ] この時点では `App` 側に PSR-15 を実装するアダプタ (Phase 3 の先取り) を一時的に置くか、Phase 2 と 3 を同じ PR にする
-- [ ] テスト: `HttpProtocolTest` をフレームワーク非依存にし、テスト用の小さな PSR-15 ハンドラ (固定レスポンスを返す無名クラス) で書き直す
+- [x] `RequestParser`: 生のバイト列 → `ServerRequestInterface`。`Request::parse()` / `splitHead()` のロジックを移す。不正なリクエストラインは `InvalidArgumentException`
+- [x] `ResponseSerializer`: `ResponseInterface` → バイト列。`Content-Length` と `Connection: close` はサーバが付け、利用者の指定は無視する (今の `MANAGED_HEADERS` の挙動を維持)
+- [x] `HttpProtocol` のコンストラクタを `RequestHandlerInterface` に変える。`isComplete()` は `RequestParser` 側の関数を使う
+- [x] ハンドラが例外を投げたら 500 を返す (今は `Router` だけが捕まえているが、任意の PSR-15 ハンドラを受け付けるならサーバ側にも最後の砦が要る)
+- [x] `Server` クラス (server 側): `serve(Protocol $protocol, string $host, int $port): never`。今の `App::serve()` の中身 (PlatformFactory → listen → EventLoop) を移す
+- [x] `HttpServer` クラス (http 側): `serve(RequestHandlerInterface $handler, string $host, int $port): never`。`HttpProtocol` を組み立てて `Server` に渡す
+- [x] この時点では `App` 側に PSR-15 を実装するアダプタ (Phase 3 の先取り) を一時的に置くか、Phase 2 と 3 を同じ PR にする (Phase 4 のディレクトリ分割を先に行い、Phase 1〜3 は packages/ の中で実装した)
+- [x] テスト: `HttpProtocolTest` をフレームワーク非依存にし、テスト用の小さな PSR-15 ハンドラ (固定レスポンスを返す無名クラス) で書き直す
 
 ### Phase 3: フレームワークを `RequestHandlerInterface` にする
 
-- [ ] `App implements RequestHandlerInterface`。`handle(ServerRequestInterface): ResponseInterface`
-- [ ] `Request` は `ServerRequestInterface` をラップする形にする。`param()` は `getAttribute()` から、`header()` / `query()` / `body()` / `json()` は PSR-7 のメソッドから取る。利用者向けのメソッドは変えない
-- [ ] `Response` は今の API (`text` / `html` / `json` / `view` / `withStatus` / `withHeader`) を保ち、`Router` の出口で `ResponseInterface` に変換する (`toPsr(ResponseFactoryInterface)`)。View の描画は変換の前に済ませる
-- [ ] `Router` は内部 API のまま。PSR 由来の `RequestHandler` 実装をやめる
-- [ ] ミドルウェア: `App::add(MiddlewareInterface)` を追加し、`handle()` でミドルウェアのパイプラインを通してから `Router` に渡す。今回はパイプラインの仕組みだけで、標準ミドルウェアは作らない
-- [ ] `App::serve()` を削除 (Q2 案 A の場合)。`App` から `Internal\Server\*` / `Internal\Http\*` の `use` が消えていることを確認
-- [ ] テスト: `AppTest` は `ServerRequest` を直接組み立てて `handle()` を呼ぶ形に書き換え。`Request::parse()` 依存をなくす
+- [x] `App implements RequestHandlerInterface`。`handle(ServerRequestInterface): ResponseInterface`
+- [x] `Request` は `ServerRequestInterface` をラップする形にする。`param()` は `getAttribute()` から、`header()` / `query()` / `body()` / `json()` は PSR-7 のメソッドから取る。利用者向けのメソッドは変えない
+- [x] `Response` は今の API (`text` / `html` / `json` / `view` / `withStatus` / `withHeader`) を保ち、`Router` の出口で `ResponseInterface` に変換する (`toPsr(ResponseFactoryInterface)`)。View の描画は変換の前に済ませる
+- [x] `Router` は内部 API のまま。PSR 由来の `RequestHandler` 実装をやめる
+- [x] ミドルウェア: `App::add(MiddlewareInterface)` を追加し、`handle()` でミドルウェアのパイプラインを通してから `Router` に渡す。今回はパイプラインの仕組みだけで、標準ミドルウェアは作らない
+- [x] `App::serve()` を削除 (Q2 案 A の場合)。`App` から `Internal\Server\*` / `Internal\Http\*` の `use` が消えていることを確認
+- [x] テスト: `AppTest` は `ServerRequest` を直接組み立てて `handle()` を呼ぶ形に書き換え。`Request::parse()` 依存をなくす
 
 ### Phase 4: ディレクトリを packages/ に分ける
 
-- [ ] `git mv` で `packages/{server,http,core,framework}/src` と `tests` に移す (履歴を追えるようにリネームだけのコミットを分ける)
-- [ ] 名前空間を書き換える (`Urassh\Phalcon\Internal\Server\` → `Urassh\Phalcon\Server\`、`Internal\Http\` → `Urassh\Phalcon\Http\` など)
-- [ ] 各パッケージに composer.json / phpunit.xml.dist / phpstan.neon.dist (level max) / README.md / LICENSE を置く
-- [ ] ルート composer.json を開発用に作り直す (path リポジトリで 4 パッケージを require)
-- [ ] 各パッケージのディレクトリで単体に `composer install && composer test && composer analyse` が通ることを確認
+- [x] `git mv` で `packages/{server,http,core,framework}/src` と `tests` に移す (履歴を追えるようにリネームだけのコミットを分ける)
+- [x] 名前空間を書き換える (`Urassh\Phalcon\Internal\Server\` → `Urassh\Phalcon\Server\`、`Internal\Http\` → `Urassh\Phalcon\Http\` など)
+- [x] 各パッケージに composer.json / phpunit.xml.dist / phpstan.neon.dist (level max) / README.md / LICENSE を置く
+- [x] ルート composer.json を開発用に作り直す (path リポジトリで 4 パッケージを require)
+- [x] 各パッケージのディレクトリで単体に `composer install && composer test && composer analyse` が通ることを確認
 
 ### Phase 5: 起動・開発環境・CI
 
-- [ ] `entrypoint.php` を新しい構成で書き直す (Q2)
-- [ ] `Makefile` の `test` / `analyse` を全パッケージに回す形にする (`make test PKG=server` で個別にも回せるように)
-- [ ] `compose.yaml` / Dockerfile はそのまま使えるはず。ボリュームのマウント位置だけ確認
-- [ ] `.github/workflows/ci.yml`: パッケージを matrix にして、それぞれのディレクトリで install → test → analyse
-- [ ] `.github/workflows/split.yml`: split 先リポジトリを用意してから有効化する (先にリポジトリ作成と deploy key / token の設定が要る)
-- [ ] README: ルートは全体の説明とパッケージの一覧に、各パッケージにそれぞれの使い方を書く。`serve()` の削除などの破壊的変更を明記
+- [x] `entrypoint.php` を新しい構成で書き直す (Q2)
+- [x] `Makefile` の `test` / `analyse` を全パッケージに回す形にする (`make test PKG=server` で個別にも回せるように)
+- [x] `compose.yaml` / Dockerfile はそのまま使えるはず。ボリュームのマウント位置だけ確認
+- [x] `.github/workflows/ci.yml`: パッケージを matrix にして、それぞれのディレクトリで install → test → analyse
+- [ ] `.github/workflows/split.yml`: split 先リポジトリを用意してから有効化する (先にリポジトリ作成と deploy key / token の設定が要る。ワークフローは追加済みで、`vars.SPLIT_ENABLED` が true になるまで動かない)
+- [x] README: ルートは全体の説明とパッケージの一覧に、各パッケージにそれぞれの使い方を書く。`serve()` の削除などの破壊的変更を明記
 
 ### Phase 6: 完了条件の確認
 
-- [ ] 4 パッケージがそれぞれ単体で `composer install` / `composer test` / `composer analyse` を通る
-- [ ] HTTP サーバで任意の PSR-15 ハンドラを動かせる: フレームワーク以外のハンドラ (テスト用の無名クラス) を `HttpServer` に渡して起動し、curl で応答を確認するテストを http パッケージに置く
-- [ ] フレームワークがループ / プラットフォームに依存していない: `packages/framework/composer.json` に `phalcon-server` / `phalcon-http` がないこと、`packages/framework/src` に `Urassh\Phalcon\Server\` / `Urassh\Phalcon\Http\` の参照がないこと (CI で grep するか、phpstan のルールか deptrac で検査)
-- [ ] `phalcon-server` が HTTP を知らない: `packages/server/composer.json` に `phalcon-http` / `psr/http-*` がなく、`packages/server/src` に `Urassh\Phalcon\Http\` の参照がないこと
-- [ ] Phase 0 のスモークテストが分割前と同じ結果になる
+- [x] 4 パッケージがそれぞれ単体で `composer install` / `composer test` / `composer analyse` を通る
+- [x] HTTP サーバで任意の PSR-15 ハンドラを動かせる: フレームワーク以外のハンドラ (テスト用の無名クラス) を `HttpServer` に渡して起動し、curl で応答を確認するテストを http パッケージに置く
+- [x] フレームワークがループ / プラットフォームに依存していない: `packages/framework/composer.json` に `phalcon-server` / `phalcon-http` がないこと、`packages/framework/src` に `Urassh\Phalcon\Server\` / `Urassh\Phalcon\Http\` の参照がないこと (CI で grep するか、phpstan のルールか deptrac で検査)
+- [x] `phalcon-server` が HTTP を知らない: `packages/server/composer.json` に `phalcon-http` / `psr/http-*` がなく、`packages/server/src` に `Urassh\Phalcon\Http\` の参照がないこと
+- [x] Phase 0 のスモークテストが分割前と同じ結果になる
 
 ## リスク・注意点
 
