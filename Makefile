@@ -1,21 +1,37 @@
 DC := docker compose run --rm php
 
-.PHONY: build install update test analyse shell
+PACKAGES := server core http framework
+
+# make test PKG=server のように個別のパッケージだけ回せる
+PKG ?= $(PACKAGES)
+
+# 各パッケージのディレクトリで $(1) を実行する
+each = $(DC) sh -c 'set -e; for p in $(PKG); do echo "== $$p"; (cd packages/$$p && $(1)); done'
+
+.PHONY: build install update test analyse boundaries smoke shell
 
 build:
 	docker compose build
 
 install:
 	$(DC) composer install
+	$(call each,composer install)
 
 update:
 	$(DC) composer update
+	$(call each,composer update)
 
 test:
-	$(DC) composer test
+	$(call each,composer test)
 
 analyse:
-	$(DC) composer analyse
+	$(call each,composer analyse)
+
+boundaries:
+	sh scripts/check-boundaries.sh
+
+smoke:
+	$(DC) sh scripts/smoke.sh
 
 shell:
 	$(DC) bash

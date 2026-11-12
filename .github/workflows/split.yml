@@ -1,0 +1,38 @@
+# packages/* をそれぞれの読み取り専用リポジトリへ split する
+#
+# 有効にする前に:
+#   1. urassh/phalcon-{server,core,http,framework} のリポジトリを作る
+#   2. それらに push できるトークンを secrets.SPLIT_TOKEN に登録する
+#   3. リポジトリ変数 SPLIT_ENABLED を true にする
+name: Split
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  split:
+    if: vars.SPLIT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [server, core, http, framework]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: symplify/monorepo-split-github-action@v2.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+        with:
+          package_directory: packages/${{ matrix.package }}
+          repository_organization: urassh
+          repository_name: phalcon-${{ matrix.package }}
+          branch: main
+          # タグの push ではモノレポと同じタグを split 先にも付ける
+          tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          user_name: github-actions[bot]
+          user_email: 41898282+github-actions[bot]@users.noreply.github.com
