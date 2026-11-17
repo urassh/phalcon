@@ -133,6 +133,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `resources(string $path, Controller $controller, ?array $only = null, array $except = []): self` | コントローラのアクションをリソースの規約でまとめて登録する |
 | `config(string $key): mixed` | 設定値を `'database.dsn'` のようにドット区切りで参照する。キーがなければ `null` |
 | `useRenderer(Renderer $renderer): self` | `Response::view()` で使うテンプレートエンジンを差し替える |
+| `onError(callable $handler): self` | エラーレスポンスの形式を決めるフックを登録する ([エラーの形式を変える](#エラーの形式を変える)) |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
 | `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。ミドルウェアを通してからルーティングする |
 
@@ -396,6 +397,39 @@ view ディレクトリに `errors/{ステータス}.php` があれば、エラ�
 
 - テンプレートには `$status` (int) と `$message` (string) が渡る。500 の `$message` は常に `Internal Server Error` で、元の例外のメッセージは渡さない
 - エラーページの描画自体に失敗した場合は、ログに出力してテキストで返す
+
+#### JSON のエラー
+
+リクエストの `Accept` に JSON (`application/json` や `application/problem+json` など) があり、`text/html` がなければ、エラーを JSON で返す。
+
+```sh
+$ curl -H 'Accept: application/json' http://localhost:8080/api/memos/999
+{"error":"Memo not found"}
+```
+
+- API のハンドラからも、HTML のときと同じく `NotFoundException` などを投げればよい
+- ブラウザのページ遷移は `text/html` を送るので、エラーページ (またはテキスト) のまま
+- `Accept` を送らないクライアント (`curl` の既定など) にはテキストを返す。パスで切り替えたい場合は次の `onError()` を使う
+
+#### エラーの形式を変える
+
+`onError()` でフックを登録すると、エラーレスポンスの形式を自由に決められる。null を返すと既定の形式 (JSON / エラーページ / テキスト) に任せる。
+
+```php
+$app->onError(function (HttpException $e, Request $req): ?Response {
+  if (!str_starts_with($req->path(), '/api/')) {
+    return null;
+  }
+
+  return Response::json(['code' => $e->status(), 'message' => $e->getMessage()], $e->status());
+});
+```
+
+- ハンドラが投げた `HttpException`、ルートにマッチしない 404 / 405、想定外の例外による 500 のたびに呼ばれる
+- 想定外の例外は `HttpException(500)` に包んで渡す。元の例外は `$e->getPrevious()` で取れるので、エラー監視サービスへの送信などに使える。レスポンスにはそのメッセージを含めないこと
+- 例外のヘッダ (405 の `Allow` など) は、返したレスポンスに同名のヘッダがなければ付ける
+- `Response::view()` を返してもよい。フック自体が例外を投げた場合は、ログに出力して既定の形式で返す
+- もう一度 `onError()` を呼ぶと置き換える
 
 ## DB と組み合わせる
 
