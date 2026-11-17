@@ -13,4 +13,9 @@ interface Renderer
    * @param array<string, mixed> $data
    */
   public function render(string $name, array $data): string;
+
+  /**
+   * テンプレート $name があるか。エラーページ (`errors/404` など) を使うかの判定に使う
+   */
+  public function exists(string $name): bool;
 }

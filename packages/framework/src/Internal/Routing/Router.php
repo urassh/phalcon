@@ -7,7 +7,9 @@ namespace Urassh\Phalcon\Internal\Routing;
 use Closure;
 use Throwable;
 use UnexpectedValueException;
-use Urassh\Phalcon\Internal\Http\BadRequestException;
+use Urassh\Phalcon\Exception\HttpException;
+use Urassh\Phalcon\Exception\MethodNotAllowedException;
+use Urassh\Phalcon\Exception\NotFoundException;
 use Urassh\Phalcon\Internal\View\ViewException;
 use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
@@ -54,11 +56,10 @@ final class Router
     }
 
     if ($allowed !== []) {
-      return Response::text("Method Not Allowed\n", 405)
-        ->withHeader('Allow', implode(', ', array_keys($allowed)));
+      return $this->error(new MethodNotAllowedException(array_keys($allowed)));
     }
 
-    return Response::text("Not Found\n", 404);
+    return $this->error(new NotFoundException());
   }
 
   private function invoke(Closure $handler, Request $request): Response
@@ -72,12 +73,46 @@ final class Router
       }
 
       return $this->render($response);
-    } catch (BadRequestException) {
-      return Response::text("Bad Request\n", 400);
+    } catch (HttpException $e) {
+      return $this->error($e);
     } catch (Throwable $e) {
       error_log("Unhandled exception in {$request->method()} {$request->path()}: {$e}");
 
-      return Response::text("Internal Server Error\n", 500);
+      // 想定外の例外のメッセージはレスポンスに含めない
+      return $this->error(new HttpException(500));
+    }
+  }
+
+  /**
+   * HttpException をレスポンスにする。`errors/{ステータス}` のテンプレートがあれば描画し、なければテキストで返す
+   *
+   * テンプレートには `$status` と `$message` を渡す
+   */
+  private function error(HttpException $e): Response
+  {
+    $response = $this->errorPage($e) ?? Response::text("{$e->getMessage()}\n", $e->status());
+    foreach ($e->headers() as $name => $value) {
+      $response = $response->withHeader($name, $value);
+    }
+
+    return $response;
+  }
+
+  private function errorPage(HttpException $e): ?Response
+  {
+    $name = "errors/{$e->status()}";
+    if ($this->renderer === null || !$this->renderer->exists($name)) {
+      return null;
+    }
+
+    try {
+      return Response::view($name, ['status' => $e->status(), 'message' => $e->getMessage()], $e->status())
+        ->render($this->renderer);
+    } catch (Throwable $renderError) {
+      // エラーページ自体が壊れていてもテキストで応答は返す
+      error_log("Failed to render error page {$name}: {$renderError}");
+
+      return null;
     }
   }
 

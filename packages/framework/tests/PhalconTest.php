@@ -15,6 +15,10 @@ use Urassh\Phalcon\Controller;
 use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
+use Urassh\Phalcon\Exception\ForbiddenException;
+use Urassh\Phalcon\Exception\HttpException;
+use Urassh\Phalcon\Exception\NotFoundException;
+use Urassh\Phalcon\Exception\UnauthorizedException;
 use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
@@ -256,6 +260,92 @@ final class PhalconTest extends TestCase
     $this->assertSame('GET, PUT, DELETE', $response->getHeaderLine('Allow'));
   }
 
+  public function testHttpExceptionBecomesTextResponse(): void
+  {
+    $app = (new Phalcon())
+      ->get('/users/{id}', fn (Request $req) => throw new NotFoundException("User {$req->param('id')} not found"))
+      ->get('/admin', fn (Request $req) => throw new ForbiddenException())
+      ->get('/login', fn (Request $req) => throw new UnauthorizedException(headers: ['WWW-Authenticate' => 'Bearer']))
+      ->get('/maintenance', fn (Request $req) => throw new HttpException(503));
+
+    $notFound = $this->send($app, 'GET', '/users/42');
+    $this->assertSame(404, $notFound->getStatusCode());
+    $this->assertSame('text/plain; charset=utf-8', $notFound->getHeaderLine('Content-Type'));
+    $this->assertSame("User 42 not found\n", (string) $notFound->getBody());
+
+    $forbidden = $this->send($app, 'GET', '/admin');
+    $this->assertSame(403, $forbidden->getStatusCode());
+    $this->assertSame("Forbidden\n", (string) $forbidden->getBody());
+
+    $unauthorized = $this->send($app, 'GET', '/login');
+    $this->assertSame(401, $unauthorized->getStatusCode());
+    $this->assertSame('Bearer', $unauthorized->getHeaderLine('WWW-Authenticate'));
+
+    $maintenance = $this->send($app, 'GET', '/maintenance');
+    $this->assertSame(503, $maintenance->getStatusCode());
+    $this->assertSame("Service Unavailable\n", (string) $maintenance->getBody());
+  }
+
+  public function testControllerActionCanThrowHttpException(): void
+  {
+    $app = (new Phalcon())->resources('/users', new class () extends Controller {
+      public function show(Request $req): Response
+      {
+        throw new NotFoundException();
+      }
+    });
+
+    $response = $this->send($app, 'GET', '/users/1');
+
+    $this->assertSame(404, $response->getStatusCode());
+    $this->assertSame("Not Found\n", (string) $response->getBody());
+  }
+
+  public function testRendersErrorPageWhenTemplateExists(): void
+  {
+    $dir = sys_get_temp_dir() . '/phalcon-app-errors-' . bin2hex(random_bytes(4));
+    mkdir("{$dir}/views/errors", 0777, true);
+    file_put_contents("{$dir}/phalcon.yaml", "view:\n  directory: views\n");
+    file_put_contents("{$dir}/views/errors/404.php", '<h1><?= e((string) $status) ?> <?= e($message) ?></h1>');
+    file_put_contents("{$dir}/views/errors/500.php", '<h1>Oops <?= e($message) ?></h1>');
+    file_put_contents("{$dir}/views/errors/405.php", '<?php throw new RuntimeException("broken");');
+
+    try {
+      $app = Phalcon::fromConfig("{$dir}/phalcon.yaml")
+        ->get('/users/{id}', fn (Request $req) => throw new NotFoundException('<User> not found'))
+        ->get('/admin', fn (Request $req) => throw new ForbiddenException())
+        ->get('/boom', fn (Request $req) => throw new RuntimeException('secret'));
+
+      $thrown = $this->send($app, 'GET', '/users/1');
+      $unmatched = $this->send($app, 'GET', '/missing');
+      $withoutPage = $this->send($app, 'GET', '/admin');
+      $internal = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/boom'));
+      $brokenPage = $this->silenceErrorLog(fn () => $this->send($app, 'POST', '/admin'));
+    } finally {
+      exec('rm -rf ' . escapeshellarg($dir));
+    }
+
+    $this->assertSame(404, $thrown->getStatusCode());
+    $this->assertSame('text/html; charset=utf-8', $thrown->getHeaderLine('Content-Type'));
+    $this->assertSame('<h1>404 &lt;User&gt; not found</h1>', (string) $thrown->getBody());
+
+    // ルートにマッチしない場合も同じエラーページを使う
+    $this->assertSame(404, $unmatched->getStatusCode());
+    $this->assertSame('<h1>404 Not Found</h1>', (string) $unmatched->getBody());
+
+    $this->assertSame(403, $withoutPage->getStatusCode());
+    $this->assertSame("Forbidden\n", (string) $withoutPage->getBody());
+
+    // 想定外の例外のメッセージはエラーページにも渡さない
+    $this->assertSame(500, $internal->getStatusCode());
+    $this->assertSame('<h1>Oops Internal Server Error</h1>', (string) $internal->getBody());
+
+    // エラーページの描画に失敗したらテキストに戻す
+    $this->assertSame(405, $brokenPage->getStatusCode());
+    $this->assertSame('GET', $brokenPage->getHeaderLine('Allow'));
+    $this->assertSame("Method Not Allowed\n", (string) $brokenPage->getBody());
+  }
+
   public function testReturnsBadRequestOnMalformedJson(): void
   {
     $app = (new Phalcon())->post('/', fn (Request $req) => Response::json($req->json()));
@@ -395,6 +485,11 @@ final class PhalconTest extends TestCase
         public function render(string $name, array $data): string
         {
           return "custom:{$name}";
+        }
+
+        public function exists(string $name): bool
+        {
+          return true;
         }
       })
       ->get('/', fn (Request $req) => Response::view('index', status: 201));
