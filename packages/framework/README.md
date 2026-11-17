@@ -58,6 +58,7 @@ $ curl http://localhost:8080/users/42
 | `Urassh\Phalcon\Controller` | `resources()` に渡すコントローラの基底クラス |
 | `Urassh\Phalcon\Renderer` | テンプレートエンジンを差し替えるときに実装するインターフェース |
 | `Urassh\Phalcon\Exception\ConfigException` | 設定ファイルの読み込みに失敗したときの例外 |
+| `Urassh\Phalcon\Exception\HttpException` とそのサブクラス | ハンドラから投げてエラーレスポンスを返す例外 |
 | `e()` | テンプレート用の HTML エスケープ関数 |
 
 それ以外のクラス (`Urassh\Phalcon\Internal\` 以下) はすべて `@internal` で、マイナーバージョンでも予告なく変わる。
@@ -309,6 +310,11 @@ interface Renderer
    * @param array<string, mixed> $data
    */
   public function render(string $name, array $data): string;
+
+  /**
+   * テンプレート $name があるか。エラーページの有無の判定に使う
+   */
+  public function exists(string $name): bool;
 }
 ```
 
@@ -320,7 +326,55 @@ interface Renderer
 | `$req->json()` でボディが不正な JSON | `400 Bad Request` |
 | パスにマッチするルートがない | `404 Not Found` |
 | パスはマッチするがメソッドが違う | `405 Method Not Allowed` (`Allow` ヘッダ付き) |
-| ハンドラが例外を投げた | `500 Internal Server Error` (例外はサーバのログに出力し、レスポンスには含めない) |
+| ハンドラが `HttpException` を投げた | 例外のステータス、メッセージ、ヘッダ |
+| ハンドラがそれ以外の例外を投げた | `500 Internal Server Error` (例外はサーバのログに出力し、レスポンスには含めない) |
+
+#### HTTP の例外
+
+ハンドラやコントローラのアクションから `Urassh\Phalcon\Exception\` の例外を投げると、処理を打ち切ってそのステータスを返す。
+
+| 例外 | ステータス |
+|---|---|
+| `BadRequestException` | `400 Bad Request` |
+| `UnauthorizedException` | `401 Unauthorized` |
+| `ForbiddenException` | `403 Forbidden` |
+| `NotFoundException` | `404 Not Found` |
+| `MethodNotAllowedException` | `405 Method Not Allowed` (`Allow` ヘッダ付き) |
+| `ConflictException` | `409 Conflict` |
+| `UnprocessableEntityException` | `422 Unprocessable Entity` |
+| `HttpException` | 任意のステータス |
+
+```php
+final class UsersController extends Controller
+{
+  public function show(Request $req): Response
+  {
+    $user = $this->users->find($req->param('id'))
+      ?? throw new NotFoundException('User not found');
+
+    return Response::json($user);
+  }
+}
+
+throw new UnauthorizedException(headers: ['WWW-Authenticate' => 'Bearer']);
+throw new HttpException(503);
+```
+
+メッセージを省略するとステータスの理由句 (`Not Found` など) になる。メッセージはクライアントにそのまま見えるので、内部の情報は入れない。
+
+#### エラーページ
+
+view ディレクトリに `errors/{ステータス}.php` があれば、エラーレスポンスをそのテンプレートで描画する。
+なければメッセージをテキスト (`text/plain`) で返す。ルートにマッチしない 404 / 405 や、想定外の例外による 500 も同じ扱いになる。
+
+```php
+<!-- views/errors/404.php -->
+<h1><?= e((string) $status) ?></h1>
+<p><?= e($message) ?></p>
+```
+
+- テンプレートには `$status` (int) と `$message` (string) が渡る。500 の `$message` は常に `Internal Server Error` で、元の例外のメッセージは渡さない
+- エラーページの描画自体に失敗した場合は、ログに出力してテキストで返す
 
 ## DB と組み合わせる
 
@@ -385,6 +439,7 @@ PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せ�
 
 - `App` を `Phalcon` に改名した。`use Urassh\Phalcon\App;` を `use Urassh\Phalcon\Phalcon;` に書き換える
 - `HttpServer` の `host` / `port` / `workers` はコンストラクタで渡す。`(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app)`
+- `Renderer` に `exists(string $name): bool` が増えた。独自の `Renderer` を実装している場合は追加する
 - パッケージ名を `urassh/phalcon` から `urassh/phalcon-framework` に変えた。名前空間 (`Urassh\Phalcon\`) は変わらない
 - `App::serve()` を削除した。`urassh/phalcon-http` の `HttpServer` に `App` を渡して起動する
 - `App::handle()` は PSR-7 の `ServerRequestInterface` を受け取り `ResponseInterface` を返す

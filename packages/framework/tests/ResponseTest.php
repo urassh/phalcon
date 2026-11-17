@@ -90,6 +90,11 @@ final class ResponseTest extends TestCase
       {
         return $name . ':' . json_encode($data);
       }
+
+      public function exists(string $name): bool
+      {
+        return true;
+      }
     });
 
     $this->assertFalse($rendered->needsRender());

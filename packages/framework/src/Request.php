@@ -6,7 +6,7 @@ namespace Urassh\Phalcon;
 
 use JsonException;
 use Psr\Http\Message\ServerRequestInterface;
-use Urassh\Phalcon\Internal\Http\BadRequestException;
+use Urassh\Phalcon\Exception\BadRequestException;
 
 /**
  * ハンドラが受け取るリクエスト。PSR-7 の ServerRequestInterface を包む

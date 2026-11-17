@@ -7,7 +7,7 @@ namespace Urassh\Phalcon\Tests;
 use PHPUnit\Framework\TestCase;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Core\ServerRequest;
-use Urassh\Phalcon\Internal\Http\BadRequestException;
+use Urassh\Phalcon\Exception\BadRequestException;
 use Urassh\Phalcon\Request;
 
 final class RequestTest extends TestCase

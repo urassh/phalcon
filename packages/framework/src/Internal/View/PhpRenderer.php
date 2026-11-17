@@ -45,6 +45,17 @@ final class PhpRenderer implements Renderer
     }
   }
 
+  public function exists(string $name): bool
+  {
+    try {
+      $this->resolve($name);
+
+      return true;
+    } catch (ViewException) {
+      return false;
+    }
+  }
+
   /**
    * テンプレート名をファイルパスに変換する。ディレクトリの外は指せない
    */
