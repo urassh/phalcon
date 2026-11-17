@@ -121,7 +121,7 @@ $app->post('/users', function (Request $req) {
 });
 ```
 
-`Response` には `text()` / `html()` / `json()` / `view()` がある。ハンドラが例外を投げると `500` を返し、例外はレスポンスに含めずログに出す。
+`Response` には `text()` / `html()` / `json()` / `view()` / `redirect()` / `seeOther()` / `back()` / `noContent()` がある。ハンドラが例外を投げると `500` を返し、例外はレスポンスに含めずログに出す。
 `NotFoundException` などの HTTP の例外を投げるとそのステータスを返し、view ディレクトリに `errors/404.php` のようなテンプレートがあればそれで描画する。
 
 ### テンプレート

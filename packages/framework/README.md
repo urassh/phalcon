@@ -250,6 +250,10 @@ $app->resources('/posts', new PostsController(), except: ['destroy']);
 | `Response::html(string $body, int $status = 200)` | `Content-Type: text/html; charset=utf-8` |
 | `Response::json(mixed $data, int $status = 200)` | JSON にエンコードした結果をボディにし、`Content-Type: application/json` を付ける |
 | `Response::view(string $name, array $data = [], int $status = 200)` | テンプレート `$name` を描画した結果を HTML として返す |
+| `Response::redirect(string $location, int $status = 302)` | `Location` ヘッダを付けてリダイレクトする。ボディは空 |
+| `Response::seeOther(string $location)` | `303 See Other` でリダイレクトする。フォームの POST のあとに GET で戻すときに使う |
+| `Response::back(Request $req, string $fallback = '/', int $status = 302)` | Referer のページへ戻る。Referer がない、またはほかのサイトを指していれば `$fallback` へ戻す |
+| `Response::noContent()` | `204 No Content`。ボディと `Content-Type` を付けない |
 | `withStatus(int $status)` | ステータスコードを差し替える |
 | `withHeader(string $name, string $value)` | ヘッダを追加 (同名があれば置き換え) する |
 
@@ -259,6 +263,23 @@ Response::json(['error' => 'not found'], 404);
 Response::text('created', 201)
   ->withHeader('Location', '/users/42');
 ```
+
+フォームを POST で受けたあとに一覧や詳細へ戻すときは、`seeOther()` (303) を使うと GET でアクセスし直させられる。
+入力をやり直させるときは `back()` で元のページへ戻す。
+
+```php
+$app->post('/memos', function (Request $req) use ($memos) {
+  $id = $memos->create($req->json());
+  if ($id === null) {
+    return Response::back($req, '/memos/new', 303);   // 入力が不正なら元のフォームへ
+  }
+
+  return Response::seeOther("/memos/{$id}");
+});
+```
+
+- `back()` が使うのは Referer のパスとクエリ文字列だけ。ホスト (`Host` ヘッダと比べる) が違う場合や、`//evil.com` のようにほかのホストと解釈されるパスの場合は `$fallback` に戻すので、オープンリダイレクトにはならない
+- `withHeader()` はヘッダ名がトークンでない場合と、値に改行や NUL を含む場合に `InvalidArgumentException` を投げる。ユーザの入力を `redirect()` に渡してもヘッダインジェクションは起きない
 
 `Content-Length` と `Connection: close` は urassh/phalcon-http が自動で付ける。
 
