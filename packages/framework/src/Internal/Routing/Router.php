@@ -88,7 +88,7 @@ final class Router
     }
 
     if ($this->renderer === null) {
-      throw new ViewException('Response::view() requires view.directory in the config file or App::useRenderer()');
+      throw new ViewException('Response::view() requires view.directory in the config file or Phalcon::useRenderer()');
     }
 
     return $response->render($this->renderer);

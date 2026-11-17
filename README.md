@@ -8,7 +8,7 @@ PHP の標準関数 (`stream_socket_server`) と FFI (epoll) の上に組み立�
 | [urassh/phalcon-server](packages/server) | イベントループとソケットのプラットフォーム (epoll / stream_select)。プロトコルを問わない | なし |
 | [urassh/phalcon-core](packages/core) | PSR-7 / PSR-17 の実装 | psr/http-message, psr/http-factory |
 | [urassh/phalcon-http](packages/http) | 任意の PSR-15 ハンドラを動かす HTTP/1.1 サーバ | phalcon-server, phalcon-core, psr/http-server-handler |
-| [urassh/phalcon-framework](packages/framework) | ルーティング、テンプレート、設定ファイル。`App` が PSR-15 のハンドラ | phalcon-core, psr/http-server-*, symfony/yaml |
+| [urassh/phalcon-framework](packages/framework) | ルーティング、テンプレート、設定ファイル。`Phalcon` が PSR-15 のハンドラ | phalcon-core, psr/http-server-*, symfony/yaml |
 
 ```
 phalcon-framework ────┐
@@ -29,18 +29,18 @@ composer require urassh/phalcon-framework urassh/phalcon-http
 ```
 
 ```php
-use Urassh\Phalcon\App;
+use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Http\HttpServer;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
-$app = new App();
+$app = new Phalcon();
 
 $app->get('/users/{id}', fn (Request $req) => Response::json([
   'id' => $req->param('id'),
 ]));
 
-(new HttpServer())->serve($app, host: '0.0.0.0', port: 8080);
+(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app);
 ```
 
 詳しくは各パッケージの README を参照。
@@ -51,10 +51,10 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 - `workers` を 2 以上にすると、その数だけワーカプロセスを fork する。各ワーカは `SO_REUSEPORT` 付きで同じアドレスに listen し、接続の振り分けはカーネルに任せる。同時に処理できるリクエストはワーカ数まで
 
   ```php
-  (new HttpServer())->serve($app, host: '0.0.0.0', port: 8080, workers: 4);
+  (new HttpServer(host: '0.0.0.0', port: 8080, workers: 4))->serve($app);
   ```
 
-- ワーカ間でメモリ上の状態 (static 変数やオブジェクトのプロパティ) は共有されない。起動前に組み立てた `App` や PDO などは fork でワーカごとにコピーされる
+- ワーカ間でメモリ上の状態 (static 変数やオブジェクトのプロパティ) は共有されない。起動前に組み立てた `Phalcon` や PDO などは fork でワーカごとにコピーされる
 - 振り分けは接続の 4-tuple のハッシュで決まる。ブロック中のワーカに当たった接続は、そのワーカが戻るまで待たされる。空いているワーカが代わりに拾うことはない
 - ワーカが落ちると master が同じ番号のワーカを起動し直す。落ちたワーカの accept キューに溜まっていた接続は切れる。起動直後の終了が 5 回続くと、設定ミスとみなして master も終了する
 - master に SIGTERM / SIGINT を送ると、全ワーカを止めてから終了する。master を SIGKILL で止めるとワーカが残るので注意
@@ -71,6 +71,8 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 ## 次のリリースでの破壊的変更
 
+- framework の `App` を `Phalcon` に改名した (`Urassh\Phalcon\Phalcon`)
+- `HttpServer` の `host` / `port` / `workers` を `serve()` の引数からコンストラクタの引数に移した。`(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app)` のように書く
 - `Port\Platform::listen()` に `bool $reusePort = false` を足した。`Platform` を自前で実装している場合はシグネチャを合わせる
 
 ## 開発環境

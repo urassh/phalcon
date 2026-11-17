@@ -20,7 +20,7 @@ use Urassh\Phalcon\Internal\View\PhpRenderer;
 /**
  * ルートを登録して PSR-15 のハンドラとして動く。起動は urassh/phalcon-http の HttpServer などに任せる
  */
-final class App implements RequestHandlerInterface
+final class Phalcon implements RequestHandlerInterface
 {
   private readonly Router $router;
 
@@ -36,7 +36,7 @@ final class App implements RequestHandlerInterface
   }
 
   /**
-   * YAML の設定ファイルを読み込んで App を作る
+   * YAML の設定ファイルを読み込んで Phalcon を作る
    *
    * @throws ConfigException ファイルが存在しない、YAML として不正、値の型が不正な場合
    */

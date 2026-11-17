@@ -45,7 +45,7 @@ final class Response
   /**
    * テンプレート $name を描画した結果を HTML として返す
    *
-   * 描画はハンドラが返したあと、App に設定された Renderer で行う
+   * 描画はハンドラが返したあと、Phalcon に設定された Renderer で行う
    *
    * @param array<string, mixed> $data テンプレート内で変数になる
    */
