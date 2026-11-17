@@ -11,6 +11,7 @@ use Urassh\Phalcon\Server\Port\Platform;
 use Urassh\Phalcon\Server\Port\Poller;
 use Urassh\Phalcon\Server\Port\Readiness;
 use Urassh\Phalcon\Server\Port\Socket;
+use Urassh\Phalcon\Server\Port\SocketException;
 
 /**
  * どの Platform の実装も満たすべき約束を、実際のループバック接続で確かめる
@@ -19,10 +20,13 @@ abstract class PlatformContractTestCase extends TestCase
 {
   private const WAIT_MS = 1000;
 
+  private Platform $platform;
   private ?ListeningSocket $listener = null;
   private Poller $poller;
   /** @var list<resource> */
   private array $clients = [];
+  /** @var list<ListeningSocket> テストの中で追加した listener */
+  private array $extraListeners = [];
 
   abstract protected function createPlatform(): Platform;
 
@@ -37,9 +41,9 @@ abstract class PlatformContractTestCase extends TestCase
 
   protected function setUp(): void
   {
-    $platform = $this->createPlatform();
-    $this->listener = $platform->listen('127.0.0.1', 0);
-    $this->poller = $platform->createPoller();
+    $this->platform = $this->createPlatform();
+    $this->listener = $this->platform->listen('127.0.0.1', 0);
+    $this->poller = $this->platform->createPoller();
   }
 
   protected function tearDown(): void
@@ -48,6 +52,9 @@ abstract class PlatformContractTestCase extends TestCase
       if (is_resource($client)) {
         fclose($client);
       }
+    }
+    foreach ($this->extraListeners as $listener) {
+      $listener->close();
     }
     $this->listener?->close();
   }
@@ -153,6 +160,54 @@ abstract class PlatformContractTestCase extends TestCase
     $this->assertSame([], $this->readinessOf($socket->fd(), $this->poller->wait(100)));
   }
 
+  public function testAllowsAnotherListenerOnSamePortWithReusePort(): void
+  {
+    $first = $this->listen('127.0.0.1', 0, reusePort: true);
+    $second = $this->listen('127.0.0.1', $this->portOf($first), reusePort: true);
+
+    $this->assertSame($first->localAddress(), $second->localAddress());
+  }
+
+  public function testRejectsAnotherListenerOnSamePortWithoutReusePort(): void
+  {
+    $this->expectException(SocketException::class);
+
+    $this->listen('127.0.0.1', $this->portOf($this->listener()));
+  }
+
+  /**
+   * テストの終わりに閉じる listener を作る
+   */
+  protected function listen(string $host, int $port, bool $reusePort = false): ListeningSocket
+  {
+    $listener = $this->platform->listen($host, $port, $reusePort);
+    $this->extraListeners[] = $listener;
+
+    return $listener;
+  }
+
+  protected function portOf(ListeningSocket $listener): int
+  {
+    $address = $listener->localAddress();
+
+    return (int) substr($address, (int) strrpos($address, ':') + 1);
+  }
+
+  /**
+   * @return resource
+   */
+  protected function connectTo(string $address): mixed
+  {
+    $client = stream_socket_client("tcp://{$address}", $errno, $errstr, 1);
+    if ($client === false) {
+      throw new RuntimeException("Failed to connect: {$errstr} ({$errno})");
+    }
+    stream_set_timeout($client, 1);
+    $this->clients[] = $client;
+
+    return $client;
+  }
+
   /**
    * @return array{Socket, resource}
    */
@@ -180,14 +235,7 @@ abstract class PlatformContractTestCase extends TestCase
    */
   private function connect(): mixed
   {
-    $client = stream_socket_client('tcp://' . $this->listener()->localAddress(), $errno, $errstr, 1);
-    if ($client === false) {
-      throw new RuntimeException("Failed to connect: {$errstr} ({$errno})");
-    }
-    stream_set_timeout($client, 1);
-    $this->clients[] = $client;
-
-    return $client;
+    return $this->connectTo($this->listener()->localAddress());
   }
 
   /**

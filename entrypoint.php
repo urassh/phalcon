@@ -19,5 +19,13 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-// App は PSR-15 のハンドラなので、起動は HttpServer に任せる
-(new HttpServer())->serve($app, host: '0.0.0.0', port: 8080);
+// 遅い処理の例。ブロックしている間、このワーカはほかの接続を処理できない
+$app->get('/slow', function (Request $req) {
+  sleep(2);
+
+  return Response::text("slow\n");
+});
+
+// App は PSR-15 のハンドラなので、起動は HttpServer に任せる。
+// ワーカを 2 つにして、/slow の間もほかのワーカが応答できるようにする
+(new HttpServer())->serve($app, host: '0.0.0.0', port: 8080, workers: 2);

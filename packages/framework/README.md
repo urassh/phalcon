@@ -72,6 +72,7 @@ $ curl http://localhost:8080/users/42
 server:
   host: 0.0.0.0
   port: 8080
+  workers: 4
 
 view:
   directory: views
@@ -98,18 +99,20 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
   $app,
   host: $app->config('server.host') ?? '0.0.0.0',
   port: $app->config('server.port') ?? 8080,
+  workers: $app->config('server.workers') ?? 1,
 );
 ```
 
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
 - 値に `${NAME}` と書くと環境変数 `NAME` の値に置き換える。未定義の環境変数を参照するとエラーになる。パスワードなどはこの方法で YAML の外から渡す
-- `server.host` / `server.port` は `App` が使うわけではなく、`$app->config()` で取り出してサーバに渡す。`App::fromConfig()` は型と範囲だけを検証する
-- ファイルが存在しない、YAML として不正、`server.port` が整数でない、といった場合は `App::fromConfig()` が `ConfigException` を投げる
+- `server.host` / `server.port` / `server.workers` は `App` が使うわけではなく、`$app->config()` で取り出してサーバに渡す。`App::fromConfig()` は型と範囲だけを検証する
+- ファイルが存在しない、YAML として不正、`server.port` や `server.workers` が整数でない、といった場合は `App::fromConfig()` が `ConfigException` を投げる
 
 | キー | 型 | デフォルト | 説明 |
 |---|---|---|---|
 | `server.host` | `string` | なし | 待ち受けるアドレス (サーバに渡す用) |
 | `server.port` | `int` | なし | 待ち受けるポート (サーバに渡す用) |
+| `server.workers` | `int` (1 以上) | なし | ワーカプロセスの数 (サーバに渡す用) |
 | `view.directory` | `string` | なし | テンプレートを置くディレクトリ。`Response::view()` を使うなら必須 |
 
 ## API
@@ -327,7 +330,8 @@ PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せ�
 
 - PDO の接続は起動時に 1 度だけ作り、全リクエストで使い回す。DB 側がアイドル状態の接続を切ることがあるので、長時間動かす場合は再接続を考慮する
 - static 変数やグローバル変数に入れた値は次のリクエストにも残る。リクエストごとの状態はハンドラ内のローカル変数に閉じる
-- 接続を 1 つずつ処理するため、遅いクエリがあると後続のリクエストがすべて待たされる
+- ハンドラは 1 プロセス内で直列に呼ばれるため、遅いクエリがあるとそのプロセスに来た後続のリクエストは待たされる。`workers` を増やすとワーカ数まで並行に処理できる
+- `workers` が 2 以上のとき、PDO などは fork でワーカごとにコピーされ、ワーカ間でメモリ上の状態は共有されない。fork 前に開いた DB 接続を複数のワーカで使い回すと壊れるので、接続はワーカごとに作る (最初のリクエストで遅延して作るなど)
 
 ## 0.1 からの移行
 

@@ -22,9 +22,9 @@ final class LinuxPlatform implements Platform
   ) {
   }
 
-  public function listen(string $host, int $port): ListeningSocket
+  public function listen(string $host, int $port, bool $reusePort = false): ListeningSocket
   {
-    return new LinuxListeningSocket($this->libc, $this->libc->listenTcp($host, $port, self::BACKLOG));
+    return new LinuxListeningSocket($this->libc, $this->libc->listenTcp($host, $port, self::BACKLOG, $reusePort));
   }
 
   public function createPoller(): Poller

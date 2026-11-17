@@ -56,7 +56,9 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 3. `Http\HttpProtocol` が `Protocol` を実装し、`RequestParser` で core の `ServerRequest` を作って PSR-15 ハンドラに渡し、`ResponseSerializer` でバイト列に戻す。パース失敗は 400、ハンドラの例外は 500 にここで変換する
 4. framework の `App::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
 
-`entrypoint.php` は `App` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 を確かめているので、ルーティングやエラー応答を変えたら `scripts/smoke.sh` も合わせる。
+`entrypoint.php` は `App` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 に加え、`workers: 2` で `/slow` の間も `GET /` が返ること、master を止めるとワーカも止まることを確かめているので、ルーティングやエラー応答、起動の仕方を変えたら `scripts/smoke.sh` も合わせる。
+
+`Server::serve()` は `workers >= 2` で `Supervisor` (`@internal`) に処理を渡し、ワーカを fork する。各ワーカは `SO_REUSEPORT` で同じポートに listen し、`Poller` は fork 後にワーカ側で作る。モデルと制約はルート README の「並行処理のモデル」を参照。
 
 ### フレームワーク層の公開範囲
 

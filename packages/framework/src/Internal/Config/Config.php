@@ -113,6 +113,18 @@ final class Config
       $values['server'] = $server;
     }
 
+    $workers = $server['workers'] ?? null;
+    if ($workers !== null) {
+      if (is_string($workers) && ctype_digit($workers)) {
+        $workers = (int) $workers;
+      }
+      if (!is_int($workers) || $workers < 1) {
+        throw new ConfigException('server.workers must be an integer of at least 1');
+      }
+      $server['workers'] = $workers;
+      $values['server'] = $server;
+    }
+
     $directory = $view['directory'] ?? null;
     if ($directory !== null) {
       if (!is_string($directory) || $directory === '') {
@@ -170,6 +182,13 @@ final class Config
     $port = $this->get('server.port');
 
     return is_int($port) ? $port : null;
+  }
+
+  public function workers(): ?int
+  {
+    $workers = $this->get('server.workers');
+
+    return is_int($workers) ? $workers : null;
   }
 
   public function viewDirectory(): ?string

@@ -16,7 +16,9 @@
         "phpunit/phpunit": "^11.0"
     },
     "suggest": {
-        "ext-ffi": "Uses epoll on Linux instead of stream_select"
+        "ext-ffi": "Uses epoll on Linux instead of stream_select",
+        "ext-pcntl": "Required to run multiple workers (with ext-posix)",
+        "ext-posix": "Required to run multiple workers (with ext-pcntl)"
     },
     "autoload": {
         "psr-4": {
