@@ -81,6 +81,17 @@ final class PhpRendererTest extends TestCase
     $this->renderer()->render('link', []);
   }
 
+  public function testExistsReportsWhetherTemplateCanBeRendered(): void
+  {
+    $this->template('users/show', 'show');
+    file_put_contents("{$this->root}/secret.php", 'secret');
+
+    $this->assertTrue($this->renderer()->exists('users/show'));
+    $this->assertFalse($this->renderer()->exists('missing'));
+    $this->assertFalse($this->renderer()->exists('../secret'));
+    $this->assertFalse((new PhpRenderer("{$this->root}/nope"))->exists('users/show'));
+  }
+
   public function testDiscardsPartialOutputWhenTemplateThrows(): void
   {
     $this->template('broken', 'partial<?php throw new RuntimeException("boom"); ?>');
