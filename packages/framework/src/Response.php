@@ -55,6 +55,16 @@ final class Response
       ->withHeader('Content-Type', 'text/html; charset=utf-8');
   }
 
+  /**
+   * $location へリダイレクトする。ボディは空
+   *
+   * フォームの POST のあとに GET で戻す場合は 303、メソッドとボディを保ったまま転送する場合は 307 / 308 を指定する
+   */
+  public static function redirect(string $location, int $status = 302): self
+  {
+    return (new self('', $status, []))->withHeader('Location', $location);
+  }
+
   private static function withContentType(string $body, int $status, string $contentType): self
   {
     return (new self($body, $status, []))->withHeader('Content-Type', $contentType);

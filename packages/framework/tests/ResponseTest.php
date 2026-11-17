@@ -31,6 +31,21 @@ final class ResponseTest extends TestCase
     $this->assertSame('text/html; charset=utf-8', Response::html('<p>hi</p>')->header('Content-Type'));
   }
 
+  public function testRedirectSetsLocationWithEmptyBody(): void
+  {
+    $response = Response::redirect('/users/42');
+
+    $this->assertSame(302, $response->status());
+    $this->assertSame('/users/42', $response->header('Location'));
+    $this->assertNull($response->header('Content-Type'));
+    $this->assertSame('', $response->body());
+  }
+
+  public function testRedirectAcceptsStatus(): void
+  {
+    $this->assertSame(303, Response::redirect('/users', 303)->status());
+  }
+
   public function testJsonEncodesDataAndSetsContentType(): void
   {
     $response = Response::json(['id' => 42, 'name' => 'うらっしゅ'], 201);

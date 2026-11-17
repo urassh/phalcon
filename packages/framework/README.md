@@ -204,18 +204,6 @@ $app->resources('/users', new UsersController());
 - アクションは `Request` を受け取って `Response` を返す public メソッド。定義していないアクションのルートは登録しない
 - `/users/new` は `/users/{id}` より先に登録されるので、`new` を定義していれば `show` に `new` が渡ることはない
 
-継承したクラスでは `redirect()` でリダイレクトを返せる。ステータスの既定は `303 See Other`。
-
-```php
-public function create(Request $req): Response
-{
-  $id = $this->users->create($req->json());
-
-  return self::redirect("/users/{$id}");      // 303
-  // return self::redirect('/users', 302);   // ステータスを指定する場合
-}
-```
-
 登録するアクションは名前付き引数 `only` / `except` で絞れる。
 
 ```php
@@ -261,6 +249,7 @@ $app->resources('/posts', new PostsController(), except: ['destroy']);
 | `Response::html(string $body, int $status = 200)` | `Content-Type: text/html; charset=utf-8` |
 | `Response::json(mixed $data, int $status = 200)` | JSON にエンコードした結果をボディにし、`Content-Type: application/json` を付ける |
 | `Response::view(string $name, array $data = [], int $status = 200)` | テンプレート `$name` を描画した結果を HTML として返す |
+| `Response::redirect(string $location, int $status = 302)` | `Location` ヘッダを付けてリダイレクトする。ボディは空 |
 | `withStatus(int $status)` | ステータスコードを差し替える |
 | `withHeader(string $name, string $value)` | ヘッダを追加 (同名があれば置き換え) する |
 
@@ -269,6 +258,16 @@ Response::json(['error' => 'not found'], 404);
 
 Response::text('created', 201)
   ->withHeader('Location', '/users/42');
+```
+
+フォームを POST で受けたあとに一覧や詳細へ戻すときは、`303` を指定すると GET でアクセスし直させられる。
+
+```php
+$app->post('/users', function (Request $req) {
+  $id = $users->create($req->json());
+
+  return Response::redirect("/users/{$id}", 303);
+});
 ```
 
 `Content-Length` と `Connection: close` は urassh/phalcon-http が自動で付ける。
