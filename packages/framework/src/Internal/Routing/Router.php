@@ -25,9 +25,20 @@ final class Router
 
   private ?Renderer $renderer = null;
 
+  /** @var (Closure(HttpException, Request): mixed)|null 戻り値は呼んだあとに検証する */
+  private ?Closure $errorHandler = null;
+
   public function useRenderer(?Renderer $renderer): void
   {
     $this->renderer = $renderer;
+  }
+
+  /**
+   * @param Closure(HttpException, Request): mixed $handler
+   */
+  public function onError(Closure $handler): void
+  {
+    $this->errorHandler = $handler;
   }
 
   public function add(string $method, string $path, Closure $handler): void
@@ -56,10 +67,10 @@ final class Router
     }
 
     if ($allowed !== []) {
-      return $this->error(new MethodNotAllowedException(array_keys($allowed)));
+      return $this->error(new MethodNotAllowedException(array_keys($allowed)), $request);
     }
 
-    return $this->error(new NotFoundException());
+    return $this->error(new NotFoundException(), $request);
   }
 
   private function invoke(Closure $handler, Request $request): Response
@@ -74,28 +85,83 @@ final class Router
 
       return $this->render($response);
     } catch (HttpException $e) {
-      return $this->error($e);
+      return $this->error($e, $request);
     } catch (Throwable $e) {
       error_log("Unhandled exception in {$request->method()} {$request->path()}: {$e}");
 
-      // 想定外の例外のメッセージはレスポンスに含めない
-      return $this->error(new HttpException(500));
+      // 想定外の例外のメッセージはレスポンスに含めない。元の例外は onError のフックから getPrevious() で見られる
+      return $this->error(new HttpException(500, previous: $e), $request);
     }
   }
 
   /**
-   * HttpException をレスポンスにする。`errors/{ステータス}` のテンプレートがあれば描画し、なければテキストで返す
+   * HttpException をレスポンスにする。次の順に試す
    *
-   * テンプレートには `$status` と `$message` を渡す
+   * 1. onError() のフックが Response を返せばそれを使う
+   * 2. リクエストが JSON を求めていれば `{"error": メッセージ}` の JSON
+   * 3. `errors/{ステータス}` のテンプレートがあれば描画した HTML (`$status` と `$message` を渡す)
+   * 4. メッセージのテキスト
+   *
+   * 例外のヘッダ (405 の Allow など) は、レスポンスに同名のヘッダがなければ付ける
    */
-  private function error(HttpException $e): Response
+  private function error(HttpException $e, Request $request): Response
   {
-    $response = $this->errorPage($e) ?? Response::text("{$e->getMessage()}\n", $e->status());
+    $response = $this->customError($e, $request)
+      ?? (self::wantsJson($request) ? Response::json(['error' => $e->getMessage()], $e->status()) : null)
+      ?? $this->errorPage($e)
+      ?? Response::text("{$e->getMessage()}\n", $e->status());
+
     foreach ($e->headers() as $name => $value) {
-      $response = $response->withHeader($name, $value);
+      if ($response->header($name) === null) {
+        $response = $response->withHeader($name, $value);
+      }
     }
 
     return $response;
+  }
+
+  private function customError(HttpException $e, Request $request): ?Response
+  {
+    if ($this->errorHandler === null) {
+      return null;
+    }
+
+    try {
+      $response = ($this->errorHandler)($e, $request);
+      if ($response !== null && !$response instanceof Response) {
+        throw new UnexpectedValueException(
+          'Error handler must return ' . Response::class . ' or null, got ' . get_debug_type($response),
+        );
+      }
+
+      return $response === null ? null : $this->render($response);
+    } catch (Throwable $handlerError) {
+      // フックが壊れていても既定の形式で応答は返す
+      error_log("Error handler failed for {$request->method()} {$request->path()}: {$handlerError}");
+
+      return null;
+    }
+  }
+
+  /**
+   * Accept に JSON (`application/json` や `application/problem+json` など) があり、`text/html` がなければ true
+   *
+   * ブラウザのページ遷移は text/html を送るので HTML のまま、fetch() や API クライアントが JSON を求めたときだけ JSON にする
+   */
+  private static function wantsJson(Request $request): bool
+  {
+    $json = false;
+    foreach (explode(',', strtolower((string) $request->header('Accept'))) as $range) {
+      $type = trim(explode(';', $range, 2)[0]);
+      if ($type === 'text/html') {
+        return false;
+      }
+      if ($type === 'application/json' || str_ends_with($type, '+json')) {
+        $json = true;
+      }
+    }
+
+    return $json;
   }
 
   private function errorPage(HttpException $e): ?Response

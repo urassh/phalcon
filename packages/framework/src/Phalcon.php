@@ -13,6 +13,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionMethod;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
+use Urassh\Phalcon\Exception\HttpException;
 use Urassh\Phalcon\Internal\Config\Config;
 use Urassh\Phalcon\Internal\Middleware\Pipeline;
 use Urassh\Phalcon\Internal\Routing\Router;
@@ -84,6 +85,21 @@ final class Phalcon implements RequestHandlerInterface
   public function useRenderer(Renderer $renderer): self
   {
     $this->router->useRenderer($renderer);
+
+    return $this;
+  }
+
+  /**
+   * エラーレスポンスの形式を決めるフックを登録する。もう一度呼ぶと置き換える
+   *
+   * ハンドラが投げた HttpException、ルートにマッチしない 404 / 405、想定外の例外 (500 の HttpException に包み、
+   * 元の例外は getPrevious() で取れる) のたびに呼ばれる。null を返すと既定の形式 (JSON / エラーページ / テキスト) に任せる
+   *
+   * @param callable(HttpException, Request): ?Response $handler
+   */
+  public function onError(callable $handler): self
+  {
+    $this->router->onError(Closure::fromCallable($handler));
 
     return $this;
   }

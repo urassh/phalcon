@@ -346,6 +346,78 @@ final class PhalconTest extends TestCase
     $this->assertSame("Method Not Allowed\n", (string) $brokenPage->getBody());
   }
 
+  public function testReturnsJsonErrorWhenClientAcceptsJson(): void
+  {
+    $app = (new Phalcon())
+      ->get('/memos/{id}', fn (Request $req) => throw new NotFoundException('Memo not found'))
+      ->get('/boom', fn (Request $req) => throw new RuntimeException('secret'));
+    $json = ['Accept' => 'application/json'];
+
+    $thrown = $this->send($app, 'GET', '/memos/1', headers: $json);
+    $this->assertSame(404, $thrown->getStatusCode());
+    $this->assertSame('application/json', $thrown->getHeaderLine('Content-Type'));
+    $this->assertSame('{"error":"Memo not found"}', (string) $thrown->getBody());
+
+    $notAllowed = $this->send($app, 'POST', '/memos/1', headers: ['Accept' => 'application/problem+json; q=0.9']);
+    $this->assertSame(405, $notAllowed->getStatusCode());
+    $this->assertSame('GET', $notAllowed->getHeaderLine('Allow'));
+    $this->assertSame('{"error":"Method Not Allowed"}', (string) $notAllowed->getBody());
+
+    $internal = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/boom', headers: $json));
+    $this->assertSame(500, $internal->getStatusCode());
+    $this->assertSame('{"error":"Internal Server Error"}', (string) $internal->getBody());
+
+    // ブラウザのページ遷移 (text/html を含む) や Accept なしは JSON にしない
+    $browser = $this->send($app, 'GET', '/memos/1', headers: ['Accept' => 'text/html,application/json;q=0.9,*/*;q=0.8']);
+    $this->assertSame('text/plain; charset=utf-8', $browser->getHeaderLine('Content-Type'));
+    $this->assertSame('text/plain; charset=utf-8', $this->send($app, 'GET', '/memos/1')->getHeaderLine('Content-Type'));
+  }
+
+  public function testOnErrorHookDecidesErrorResponse(): void
+  {
+    $seen = [];
+    $app = (new Phalcon())
+      ->onError(function (HttpException $e, Request $req) use (&$seen): ?Response {
+        $seen[] = $e->getPrevious()?->getMessage();
+        if (!str_starts_with($req->path(), '/api/')) {
+          return null;
+        }
+
+        return Response::json(['code' => $e->status(), 'message' => $e->getMessage()], $e->status());
+      })
+      ->get('/api/memos/{id}', fn (Request $req) => throw new NotFoundException())
+      ->post('/api/memos', fn (Request $req) => Response::text('ok'))
+      ->get('/api/boom', fn (Request $req) => throw new RuntimeException('secret'))
+      ->get('/memos/{id}', fn (Request $req) => throw new NotFoundException());
+
+    $api = $this->send($app, 'GET', '/api/memos/1');
+    $this->assertSame(404, $api->getStatusCode());
+    $this->assertSame('{"code":404,"message":"Not Found"}', (string) $api->getBody());
+
+    // フックが返したレスポンスにも例外のヘッダを付ける
+    $this->assertSame('POST', $this->send($app, 'GET', '/api/memos')->getHeaderLine('Allow'));
+
+    // 想定外の例外は 500 に包まれ、元の例外は getPrevious() で見られる
+    $internal = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/api/boom'));
+    $this->assertSame('{"code":500,"message":"Internal Server Error"}', (string) $internal->getBody());
+    $this->assertContains('secret', $seen);
+
+    // null を返すと既定の形式に任せる
+    $this->assertSame("Not Found\n", (string) $this->send($app, 'GET', '/memos/1')->getBody());
+  }
+
+  public function testFallsBackToDefaultWhenOnErrorHookFails(): void
+  {
+    $app = (new Phalcon())
+      ->onError(fn (HttpException $e, Request $req) => throw new RuntimeException('broken hook'))
+      ->get('/memos/{id}', fn (Request $req) => throw new NotFoundException());
+
+    $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/memos/1'));
+
+    $this->assertSame(404, $response->getStatusCode());
+    $this->assertSame("Not Found\n", (string) $response->getBody());
+  }
+
   public function testReturnsBadRequestOnMalformedJson(): void
   {
     $app = (new Phalcon())->post('/', fn (Request $req) => Response::json($req->json()));
@@ -565,10 +637,16 @@ final class PhalconTest extends TestCase
     };
   }
 
-  private function send(Phalcon $app, string $method, string $target, string $body = ''): ResponseInterface
+  /**
+   * @param array<string, string> $headers
+   */
+  private function send(Phalcon $app, string $method, string $target, string $body = '', array $headers = []): ResponseInterface
   {
     $factory = new Psr17Factory();
     $request = $factory->createServerRequest($method, $target)->withBody($factory->createStream($body));
+    foreach ($headers as $name => $value) {
+      $request = $request->withHeader($name, $value);
+    }
 
     return $app->handle($request);
   }
