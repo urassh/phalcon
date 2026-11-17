@@ -99,6 +99,33 @@ final class ResponseTest extends TestCase
     ];
   }
 
+  public function testCreatedSetsLocationAndJsonBody(): void
+  {
+    $response = Response::created('/users/42', ['id' => 42]);
+
+    $this->assertSame(201, $response->status());
+    $this->assertSame('/users/42', $response->header('Location'));
+    $this->assertSame('application/json', $response->header('Content-Type'));
+    $this->assertSame('{"id":42}', $response->body());
+  }
+
+  public function testCreatedWithoutDataHasEmptyBodyWithoutContentType(): void
+  {
+    $response = Response::created('/users/42');
+
+    $this->assertSame(201, $response->status());
+    $this->assertSame('/users/42', $response->header('Location'));
+    $this->assertNull($response->header('Content-Type'));
+    $this->assertSame('', $response->body());
+  }
+
+  public function testCreatedRejectsHeaderInjection(): void
+  {
+    $this->expectException(InvalidArgumentException::class);
+
+    Response::created("/users/42\r\nSet-Cookie: a=b");
+  }
+
   public function testNoContentHasEmptyBodyWithoutContentType(): void
   {
     $response = Response::noContent();

@@ -85,6 +85,20 @@ final class Response
   }
 
   /**
+   * 201 Created。作成したリソースの URL を Location に付ける
+   *
+   * $data を渡すと JSON にエンコードしてボディにする。null ならボディは空で、Content-Type も付けない
+   *
+   * @throws \JsonException JSON にエンコードできない場合
+   */
+  public static function created(string $location, mixed $data = null): self
+  {
+    $response = $data === null ? new self('', 201, []) : self::json($data, 201);
+
+    return $response->withHeader('Location', $location);
+  }
+
+  /**
    * 204 No Content。ボディは空で、Content-Type も付けない
    */
   public static function noContent(): self

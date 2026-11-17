@@ -254,6 +254,7 @@ $app->resources('/posts', new PostsController(), except: ['destroy']);
 | `Response::redirect(string $location, int $status = 302)` | `Location` ヘッダを付けてリダイレクトする。ボディは空 |
 | `Response::seeOther(string $location)` | `303 See Other` でリダイレクトする。フォームの POST のあとに GET で戻すときに使う |
 | `Response::back(Request $req, string $fallback = '/', int $status = 302)` | Referer のページへ戻る。Referer がない、またはほかのサイトを指していれば `$fallback` へ戻す |
+| `Response::created(string $location, mixed $data = null)` | `201 Created` と `Location` ヘッダを返す。`$data` を渡すと JSON にしてボディにし、`null` ならボディと `Content-Type` を付けない |
 | `Response::noContent()` | `204 No Content`。ボディと `Content-Type` を付けない |
 | `withStatus(int $status)` | ステータスコードを差し替える |
 | `withHeader(string $name, string $value)` | ヘッダを追加 (同名があれば置き換え) する |
@@ -261,8 +262,7 @@ $app->resources('/posts', new PostsController(), except: ['destroy']);
 ```php
 Response::json(['error' => 'not found'], 404);
 
-Response::text('created', 201)
-  ->withHeader('Location', '/users/42');
+Response::created('/users/42', ['id' => 42]);   // 201 + Location + JSON
 ```
 
 フォームを POST で受けたあとに一覧や詳細へ戻すときは、`seeOther()` (303) を使うと GET でアクセスし直させられる。
@@ -474,8 +474,7 @@ $app->post('/users', function (Request $req) use ($pdo) {
   $stmt->execute(['name' => $body['name']]);
   $id = $pdo->lastInsertId();
 
-  return Response::json(['id' => (int) $id], 201)
-    ->withHeader('Location', "/users/{$id}");
+  return Response::created("/users/{$id}", ['id' => (int) $id]);
 });
 
 (new HttpServer())->serve($app);
