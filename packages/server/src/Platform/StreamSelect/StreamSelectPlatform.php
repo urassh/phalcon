@@ -25,9 +25,16 @@ final class StreamSelectPlatform implements Platform
     $this->streams = new Streams();
   }
 
-  public function listen(string $host, int $port): ListeningSocket
+  public function listen(string $host, int $port, bool $reusePort = false): ListeningSocket
   {
-    $server = @stream_socket_server("tcp://{$host}:{$port}", $errno, $errstr);
+    $context = stream_context_create(['socket' => ['so_reuseport' => $reusePort]]);
+    $server = @stream_socket_server(
+      "tcp://{$host}:{$port}",
+      $errno,
+      $errstr,
+      STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+      $context,
+    );
     if ($server === false) {
       throw new SocketException("Failed to listen on {$host}:{$port}: {$errstr} ({$errno})", $errno ?? 0);
     }

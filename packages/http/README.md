@@ -32,11 +32,18 @@ $handler = new class () implements RequestHandlerInterface {
 
 [urassh/phalcon-framework](../framework) の `App` もそのまま渡せる。
 
+`workers` を 2 以上にすると、その数だけワーカを fork して並行に処理する (pcntl と posix の拡張が必要)。
+並行処理のモデルと制約は [urassh/phalcon-server](../server#並行処理のモデル) を参照。
+
+```php
+(new HttpServer())->serve($handler, host: '0.0.0.0', port: 8080, workers: 4);
+```
+
 ## 公開 API
 
 | 型 | 役割 |
 |---|---|
-| `HttpServer` | `serve(RequestHandlerInterface $handler, string $host = '0.0.0.0', int $port = 8080): never` |
+| `HttpServer` | `serve(RequestHandlerInterface $handler, string $host = '0.0.0.0', int $port = 8080, int $workers = 1): never` |
 | `HttpProtocol` | phalcon-server の `Protocol` 実装。`Server` と組み合わせて使うとき用 |
 
 `RequestParser`, `ResponseSerializer`, `Headers` は `@internal`。
@@ -50,7 +57,7 @@ $handler = new class () implements RequestHandlerInterface {
 
 ## 制限
 
-- 接続は 1 つずつ順番に処理する (並行処理なし)
+- ハンドラは 1 プロセス内で直列に呼ぶ。ハンドラがブロックしている間、そのプロセスはほかの接続を処理しない。並行に処理したいときは `workers` を増やす (ワーカ間でメモリ上の状態は共有されない)
 - 1 リクエストごとに接続を閉じる (keep-alive なし)
 - リクエストは 1 MiB まで
 - HTTPS、chunked transfer encoding、multipart/form-data のパースには対応しない (`getParsedBody()` は常に `null`)

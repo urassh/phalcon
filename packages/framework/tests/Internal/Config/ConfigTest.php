@@ -78,6 +78,19 @@ final class ConfigTest extends TestCase
     $this->assertSame(9001, $this->load("server:\n  port: \${PHALCON_TEST_PASSWORD}\n")->port());
   }
 
+  public function testReadsWorkers(): void
+  {
+    $this->assertSame(4, $this->load("server:\n  workers: 4\n")->workers());
+    $this->assertNull($this->load("server:\n  port: 8080\n")->workers());
+  }
+
+  public function testWorkersFromEnvironmentVariableIsCastToInt(): void
+  {
+    putenv('PHALCON_TEST_PASSWORD=3');
+
+    $this->assertSame(3, $this->load("server:\n  workers: \${PHALCON_TEST_PASSWORD}\n")->workers());
+  }
+
   public function testThrowsOnUndefinedEnvironmentVariable(): void
   {
     $this->expectException(ConfigException::class);
@@ -117,6 +130,9 @@ final class ConfigTest extends TestCase
     yield 'port is a float' => ["server:\n  port: 80.5\n"];
     yield 'port is out of range' => ["server:\n  port: 70000\n"];
     yield 'host is not a string' => ["server:\n  host: [a]\n"];
+    yield 'workers is zero' => ["server:\n  workers: 0\n"];
+    yield 'workers is not an integer' => ["server:\n  workers: many\n"];
+    yield 'workers is negative' => ["server:\n  workers: -1\n"];
     yield 'view directory is empty' => ["view:\n  directory: ''\n"];
   }
 

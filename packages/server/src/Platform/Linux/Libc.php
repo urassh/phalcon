@@ -23,6 +23,7 @@ final class Libc
   public const SOCK_CLOEXEC = 0x80000;
   public const SOL_SOCKET = 1;
   public const SO_REUSEADDR = 2;
+  public const SO_REUSEPORT = 15;
   public const MSG_NOSIGNAL = 0x4000;
 
   public const EINTR = 4;
@@ -88,12 +89,15 @@ final class Libc
   /**
    * @throws SocketException
    */
-  public function listenTcp(string $host, int $port, int $backlog): int
+  public function listenTcp(string $host, int $port, int $backlog, bool $reusePort = false): int
   {
     $fd = $this->syscall('socket', self::AF_INET, self::SOCK_STREAM | self::SOCK_NONBLOCK | self::SOCK_CLOEXEC, 0);
 
     try {
       $this->syscall('setsockopt', $fd, self::SOL_SOCKET, self::SO_REUSEADDR, pack('l', 1), 4);
+      if ($reusePort) {
+        $this->syscall('setsockopt', $fd, self::SOL_SOCKET, self::SO_REUSEPORT, pack('l', 1), 4);
+      }
 
       $addr = $this->sockaddr($host, $port);
       $this->check($this->call('bind', $fd, $addr, strlen($addr)), "bind {$host}:{$port}");
