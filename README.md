@@ -101,6 +101,13 @@ $app
 
 ハンドラにはクロージャのほか、`__invoke` を持つクラスや `[$controller, 'method']` も渡せる。
 
+`Controller` を継承したクラスの `index` / `new` / `create` / `show` / `edit` / `update` / `destroy` をまとめて登録することもできる。
+
+```php
+$app->resources('/users', new UsersController()); // GET /users → index、GET /users/{id} → show など
+$app->resources('/posts', new PostsController(), only: ['index', 'show']);
+```
+
 ### リクエストとレスポンス
 
 ```php

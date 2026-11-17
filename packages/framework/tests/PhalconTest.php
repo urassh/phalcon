@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Urassh\Phalcon\Tests;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
+use Urassh\Phalcon\Controller;
 use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
@@ -108,6 +110,129 @@ final class PhalconTest extends TestCase
 
     $this->assertSame('invoke', (string) $this->send($app, 'GET', '/invoke')->getBody());
     $this->assertSame('show', (string) $this->send($app, 'GET', '/show')->getBody());
+  }
+
+  public function testResourcesMapsActionsToRoutes(): void
+  {
+    $app = (new Phalcon())->resources('/users', new class () extends Controller {
+      public function index(Request $req): Response
+      {
+        return Response::text('index');
+      }
+
+      public function new(Request $req): Response
+      {
+        return Response::text('new');
+      }
+
+      public function create(Request $req): Response
+      {
+        return Response::text('create', 201);
+      }
+
+      public function show(Request $req): Response
+      {
+        return Response::text("show:{$req->param('id')}");
+      }
+
+      public function edit(Request $req): Response
+      {
+        return Response::text("edit:{$req->param('id')}");
+      }
+
+      public function update(Request $req): Response
+      {
+        return Response::text("update:{$req->method()}:{$req->param('id')}");
+      }
+
+      public function destroy(Request $req): Response
+      {
+        return Response::text("destroy:{$req->param('id')}");
+      }
+    });
+
+    $cases = [
+      ['GET', '/users', 'index'],
+      ['GET', '/users/new', 'new'],
+      ['POST', '/users', 'create'],
+      ['GET', '/users/42', 'show:42'],
+      ['GET', '/users/42/edit', 'edit:42'],
+      ['PATCH', '/users/42', 'update:PATCH:42'],
+      ['PUT', '/users/42', 'update:PUT:42'],
+      ['DELETE', '/users/42', 'destroy:42'],
+    ];
+    foreach ($cases as [$method, $target, $expected]) {
+      $this->assertSame($expected, (string) $this->send($app, $method, $target)->getBody(), "{$method} {$target}");
+    }
+  }
+
+  public function testResourcesRegistersOnlyDefinedPublicActions(): void
+  {
+    $app = (new Phalcon())->resources('/posts/', new class () extends Controller {
+      public function show(Request $req): Response
+      {
+        return Response::text('show');
+      }
+
+      protected function index(Request $req): Response
+      {
+        return Response::text('index');
+      }
+    });
+
+    $this->assertSame('show', (string) $this->send($app, 'GET', '/posts/1')->getBody());
+    $this->assertSame(404, $this->send($app, 'GET', '/posts')->getStatusCode());
+
+    $response = $this->send($app, 'DELETE', '/posts/1');
+    $this->assertSame(405, $response->getStatusCode());
+    $this->assertSame('GET', $response->getHeaderLine('Allow'));
+  }
+
+  public function testResourcesOnlyRegistersGivenActions(): void
+  {
+    $app = (new Phalcon())->resources('/users', $this->fullController(), only: ['index', 'show']);
+
+    $this->assertSame('index', (string) $this->send($app, 'GET', '/users')->getBody());
+    $this->assertSame('show', (string) $this->send($app, 'GET', '/users/1')->getBody());
+    // new がないので /users/new は show に渡る
+    $this->assertSame('show', (string) $this->send($app, 'GET', '/users/new')->getBody());
+    $this->assertSame(405, $this->send($app, 'POST', '/users')->getStatusCode());
+    $this->assertSame(405, $this->send($app, 'DELETE', '/users/1')->getStatusCode());
+  }
+
+  public function testResourcesExceptSkipsGivenActions(): void
+  {
+    $app = (new Phalcon())->resources('/users', $this->fullController(), except: ['destroy', 'edit']);
+
+    $this->assertSame('update', (string) $this->send($app, 'PATCH', '/users/1')->getBody());
+    $this->assertSame(404, $this->send($app, 'GET', '/users/1/edit')->getStatusCode());
+
+    $response = $this->send($app, 'DELETE', '/users/1');
+    $this->assertSame(405, $response->getStatusCode());
+    $this->assertSame('GET, PATCH, PUT', $response->getHeaderLine('Allow'));
+  }
+
+  public function testResourcesRejectsUnknownActionName(): void
+  {
+    $this->expectException(InvalidArgumentException::class);
+    $this->expectExceptionMessage("Unknown action 'delete'");
+
+    (new Phalcon())->resources('/users', $this->fullController(), except: ['delete']);
+  }
+
+  public function testResourcesRejectsOnlyActionNotDefinedByController(): void
+  {
+    $controller = new class () extends Controller {
+      public function index(Request $req): Response
+      {
+        return Response::text('index');
+      }
+    };
+
+    $this->expectException(InvalidArgumentException::class);
+    $this->expectExceptionMessage("does not define public action 'show'");
+
+    (new Phalcon())->resources('/users', $controller, only: ['index', 'show']);
   }
 
   public function testReturnsNotFoundWhenNoRouteMatches(): void
@@ -301,6 +426,46 @@ final class PhalconTest extends TestCase
       private function append(string $trace): string
       {
         return $trace === '' ? $this->name : "{$trace},{$this->name}";
+      }
+    };
+  }
+
+  private function fullController(): Controller
+  {
+    return new class () extends Controller {
+      public function index(Request $req): Response
+      {
+        return Response::text('index');
+      }
+
+      public function new(Request $req): Response
+      {
+        return Response::text('new');
+      }
+
+      public function create(Request $req): Response
+      {
+        return Response::text('create');
+      }
+
+      public function show(Request $req): Response
+      {
+        return Response::text('show');
+      }
+
+      public function edit(Request $req): Response
+      {
+        return Response::text('edit');
+      }
+
+      public function update(Request $req): Response
+      {
+        return Response::text('update');
+      }
+
+      public function destroy(Request $req): Response
+      {
+        return Response::text('destroy');
       }
     };
   }

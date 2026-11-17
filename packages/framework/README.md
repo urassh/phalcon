@@ -55,6 +55,7 @@ $ curl http://localhost:8080/users/42
 | `Urassh\Phalcon\Phalcon` | ルートとミドルウェアの登録、設定の読み込み。PSR-15 の `RequestHandlerInterface` |
 | `Urassh\Phalcon\Request` | ハンドラが受け取るリクエスト |
 | `Urassh\Phalcon\Response` | ハンドラが返すレスポンス |
+| `Urassh\Phalcon\Controller` | `resources()` に渡すコントローラの基底クラス |
 | `Urassh\Phalcon\Renderer` | テンプレートエンジンを差し替えるときに実装するインターフェース |
 | `Urassh\Phalcon\Exception\ConfigException` | 設定ファイルの読み込みに失敗したときの例外 |
 | `e()` | テンプレート用の HTML エスケープ関数 |
@@ -128,6 +129,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `patch(string $path, callable $handler): self` | PATCH のルートを登録する |
 | `delete(string $path, callable $handler): self` | DELETE のルートを登録する |
 | `route(string $method, string $path, callable $handler): self` | 任意のメソッドでルートを登録する |
+| `resources(string $path, Controller $controller, ?array $only = null, array $except = []): self` | コントローラのアクションをリソースの規約でまとめて登録する |
 | `config(string $key): mixed` | 設定値を `'database.dsn'` のようにドット区切りで参照する。キーがなければ `null` |
 | `useRenderer(Renderer $renderer): self` | `Response::view()` で使うテンプレートエンジンを差し替える |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
@@ -165,6 +167,53 @@ fn (Request $req): Response => Response::text('OK');
 ```
 
 クロージャのほか、`__invoke` を持つクラスのインスタンスや `[$controller, 'method']` も渡せる。
+
+#### コントローラ
+
+`Controller` を継承したクラスを `resources()` に渡すと、アクション名に応じて次の表のとおりルートを登録する。
+
+```php
+use Urassh\Phalcon\Controller;
+
+final class UsersController extends Controller
+{
+  public function index(Request $req): Response
+  {
+    return Response::json([['id' => 1]]);
+  }
+
+  public function show(Request $req): Response
+  {
+    return Response::json(['id' => $req->param('id')]);
+  }
+}
+
+$app->resources('/users', new UsersController());
+```
+
+| アクション | メソッド | パス |
+|---|---|---|
+| `index` | GET | `/users` |
+| `new` | GET | `/users/new` |
+| `create` | POST | `/users` |
+| `show` | GET | `/users/{id}` |
+| `edit` | GET | `/users/{id}/edit` |
+| `update` | PATCH / PUT | `/users/{id}` |
+| `destroy` | DELETE | `/users/{id}` |
+
+- アクションは `Request` を受け取って `Response` を返す public メソッド。定義していないアクションのルートは登録しない
+- `/users/new` は `/users/{id}` より先に登録されるので、`new` を定義していれば `show` に `new` が渡ることはない
+
+登録するアクションは名前付き引数 `only` / `except` で絞れる。
+
+```php
+$app->resources('/users', new UsersController(), only: ['index', 'show']);
+$app->resources('/posts', new PostsController(), except: ['destroy']);
+```
+
+- `only` を渡すとそのアクションだけを、`except` を渡すとそれ以外を登録する。両方渡すと `only` から `except` を除いたものになる
+- 表にないアクション名を渡すと `InvalidArgumentException` を投げる
+- `only` に書いたアクションをコントローラが定義していない場合も `InvalidArgumentException` を投げる。`except` やどちらも渡さない場合は、定義していないアクションを黙って飛ばす
 
 #### パスパターン
 

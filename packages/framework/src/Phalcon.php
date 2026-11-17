@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Urassh\Phalcon;
 
 use Closure;
+use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use ReflectionMethod;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Internal\Config\Config;
@@ -22,6 +24,21 @@ use Urassh\Phalcon\Internal\View\PhpRenderer;
  */
 final class Phalcon implements RequestHandlerInterface
 {
+  /**
+   * resources() が登録するアクション、メソッド、パスの接尾辞。`/new` が `/{id}` より先にマッチするよう、この順で登録する
+   *
+   * @var list<array{string, list<string>, string}>
+   */
+  private const RESOURCE_ROUTES = [
+    ['index', ['GET'], ''],
+    ['new', ['GET'], '/new'],
+    ['create', ['POST'], ''],
+    ['show', ['GET'], '/{id}'],
+    ['edit', ['GET'], '/{id}/edit'],
+    ['update', ['PATCH', 'PUT'], '/{id}'],
+    ['destroy', ['DELETE'], '/{id}'],
+  ];
+
   private readonly Router $router;
 
   private Config $config;
@@ -119,6 +136,75 @@ final class Phalcon implements RequestHandlerInterface
     $this->router->add($method, $path, Closure::fromCallable($handler));
 
     return $this;
+  }
+
+  /**
+   * コントローラのアクションをリソースの規約でまとめて登録する
+   *
+   * `$app->resources('/users', new UsersController())` で `GET /users` が index、
+   * `GET /users/{id}` が show、のように割り当てる。対応表は Controller を参照
+   *
+   * `$only` を渡すとそのアクションだけを、`$except` を渡すとそれ以外を登録する
+   *
+   * @param list<string>|null $only 登録するアクション。null ならコントローラが定義しているものすべて
+   * @param list<string> $except 登録しないアクション
+   *
+   * @throws InvalidArgumentException 知らないアクション名を渡した場合、`$only` のアクションをコントローラが定義していない場合
+   */
+  public function resources(string $path, Controller $controller, ?array $only = null, array $except = []): self
+  {
+    $actions = array_column(self::RESOURCE_ROUTES, 0);
+    foreach ([...$only ?? [], ...$except] as $action) {
+      if (!in_array($action, $actions, true)) {
+        throw new InvalidArgumentException(
+          "Unknown action '{$action}'. Available actions: " . implode(', ', $actions),
+        );
+      }
+    }
+
+    $base = rtrim($path, '/');
+
+    foreach (self::RESOURCE_ROUTES as [$action, $methods, $suffix]) {
+      if (($only !== null && !in_array($action, $only, true)) || in_array($action, $except, true)) {
+        continue;
+      }
+
+      $handler = self::action($controller, $action);
+      if ($handler === null) {
+        // only で明示したのに定義がなければ書き間違いとみなす
+        if ($only !== null) {
+          throw new InvalidArgumentException(
+            get_debug_type($controller) . " does not define public action '{$action}'",
+          );
+        }
+
+        continue;
+      }
+
+      $route = $base . $suffix;
+      foreach ($methods as $method) {
+        $this->router->add($method, $route === '' ? '/' : $route, $handler);
+      }
+    }
+
+    return $this;
+  }
+
+  /**
+   * public なインスタンスメソッドとして定義されていればアクションのクロージャを返す。なければ null
+   */
+  private static function action(Controller $controller, string $action): ?Closure
+  {
+    if (!method_exists($controller, $action)) {
+      return null;
+    }
+
+    $method = new ReflectionMethod($controller, $action);
+    if (!$method->isPublic() || $method->isStatic()) {
+      return null;
+    }
+
+    return $method->getClosure($controller);
   }
 
   /**
