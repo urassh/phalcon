@@ -12,18 +12,22 @@ use Urassh\Phalcon\Server\Server;
  */
 final class HttpServer
 {
+  /**
+   * @param int $workers 2 以上ならその数だけワーカを fork する。ワーカ間でメモリ上の状態は共有されない
+   */
   public function __construct(
+    private readonly string $host = '0.0.0.0',
+    private readonly int $port = 8080,
+    private readonly int $workers = 1,
     private readonly Server $server = new Server(),
   ) {
   }
 
   /**
    * サーバを起動する。プロセスが終了するまで戻らない
-   *
-   * @param int $workers 2 以上ならその数だけワーカを fork する。ワーカ間でメモリ上の状態は共有されない
    */
-  public function serve(RequestHandlerInterface $handler, string $host = '0.0.0.0', int $port = 8080, int $workers = 1): never
+  public function serve(RequestHandlerInterface $handler): never
   {
-    $this->server->serve(new HttpProtocol($handler), $host, $port, $workers);
+    $this->server->serve(new HttpProtocol($handler), $this->host, $this->port, $this->workers);
   }
 }

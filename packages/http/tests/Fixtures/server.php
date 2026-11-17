@@ -19,4 +19,4 @@ $handler = new class () implements RequestHandlerInterface {
   }
 };
 
-(new HttpServer())->serve($handler, '127.0.0.1', 0);
+(new HttpServer('127.0.0.1', 0))->serve($handler);

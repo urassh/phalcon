@@ -10,18 +10,18 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
-use Urassh\Phalcon\App;
+use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Renderer;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
-final class AppTest extends TestCase
+final class PhalconTest extends TestCase
 {
   public function testDispatchesToMatchingRoute(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->get('/', fn (Request $req) => Response::text('top'))
       ->post('/users', fn (Request $req) => Response::text('created', 201));
 
@@ -34,7 +34,7 @@ final class AppTest extends TestCase
 
   public function testEachMethodHelperRegistersItsMethod(): void
   {
-    $app = new App();
+    $app = new Phalcon();
     foreach (['get', 'post', 'put', 'patch', 'delete'] as $method) {
       $app->{$method}('/', fn (Request $req) => Response::text($req->method()));
     }
@@ -47,7 +47,7 @@ final class AppTest extends TestCase
 
   public function testExtractsPathParams(): void
   {
-    $app = (new App())->get(
+    $app = (new Phalcon())->get(
       '/users/{id}/posts/{post_id}',
       fn (Request $req) => Response::text("{$req->param('id')}:{$req->param('post_id')}"),
     );
@@ -57,7 +57,7 @@ final class AppTest extends TestCase
 
   public function testParamDoesNotMatchAcrossSegments(): void
   {
-    $app = (new App())->get('/users/{id}', fn (Request $req) => Response::text('ok'));
+    $app = (new Phalcon())->get('/users/{id}', fn (Request $req) => Response::text('ok'));
 
     $this->assertSame(404, $this->send($app, 'GET', '/users/1/2')->getStatusCode());
     $this->assertSame(404, $this->send($app, 'GET', '/users/')->getStatusCode());
@@ -65,14 +65,14 @@ final class AppTest extends TestCase
 
   public function testIgnoresQueryStringWhenMatching(): void
   {
-    $app = (new App())->get('/search', fn (Request $req) => Response::text((string) $req->query('q')));
+    $app = (new Phalcon())->get('/search', fn (Request $req) => Response::text((string) $req->query('q')));
 
     $this->assertSame('php', (string) $this->send($app, 'GET', '/search?q=php')->getBody());
   }
 
   public function testLiteralPartsAreNotTreatedAsRegex(): void
   {
-    $app = (new App())->get('/a.b', fn (Request $req) => Response::text('ok'));
+    $app = (new Phalcon())->get('/a.b', fn (Request $req) => Response::text('ok'));
 
     $this->assertSame(200, $this->send($app, 'GET', '/a.b')->getStatusCode());
     $this->assertSame(404, $this->send($app, 'GET', '/axb')->getStatusCode());
@@ -80,7 +80,7 @@ final class AppTest extends TestCase
 
   public function testFirstRegisteredRouteWins(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->get('/users/me', fn (Request $req) => Response::text('me'))
       ->get('/users/{id}', fn (Request $req) => Response::text('id'));
 
@@ -102,7 +102,7 @@ final class AppTest extends TestCase
       }
     };
 
-    $app = (new App())
+    $app = (new Phalcon())
       ->get('/invoke', $controller)
       ->get('/show', [$controller, 'show']);
 
@@ -112,14 +112,14 @@ final class AppTest extends TestCase
 
   public function testReturnsNotFoundWhenNoRouteMatches(): void
   {
-    $app = (new App())->get('/', fn (Request $req) => Response::text('ok'));
+    $app = (new Phalcon())->get('/', fn (Request $req) => Response::text('ok'));
 
     $this->assertSame(404, $this->send($app, 'GET', '/missing')->getStatusCode());
   }
 
   public function testReturnsMethodNotAllowedWithAllowHeader(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->get('/users/{id}', fn (Request $req) => Response::text('ok'))
       ->put('/users/{id}', fn (Request $req) => Response::text('ok'))
       ->delete('/users/{id}', fn (Request $req) => Response::text('ok'))
@@ -133,7 +133,7 @@ final class AppTest extends TestCase
 
   public function testReturnsBadRequestOnMalformedJson(): void
   {
-    $app = (new App())->post('/', fn (Request $req) => Response::json($req->json()));
+    $app = (new Phalcon())->post('/', fn (Request $req) => Response::json($req->json()));
 
     $this->assertSame(400, $this->send($app, 'POST', '/', '{')->getStatusCode());
     $this->assertSame('{"a":1}', (string) $this->send($app, 'POST', '/', '{"a":1}')->getBody());
@@ -141,7 +141,7 @@ final class AppTest extends TestCase
 
   public function testReturnsInternalServerErrorWhenHandlerThrows(): void
   {
-    $app = (new App())->get('/', function (Request $req): Response {
+    $app = (new Phalcon())->get('/', function (Request $req): Response {
       throw new RuntimeException('secret detail');
     });
 
@@ -154,7 +154,7 @@ final class AppTest extends TestCase
   public function testReturnsInternalServerErrorWhenHandlerReturnsNonResponse(): void
   {
     // @phpstan-ignore argument.type (型に反するハンドラを意図的に渡す)
-    $app = (new App())->get('/', fn (Request $req) => 'not a response');
+    $app = (new Phalcon())->get('/', fn (Request $req) => 'not a response');
 
     $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
 
@@ -163,7 +163,7 @@ final class AppTest extends TestCase
 
   public function testMiddlewareRunsInOrderAroundRouting(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->add($this->tagMiddleware('outer'))
       ->add($this->tagMiddleware('inner'))
       ->get('/', fn (Request $req) => Response::text((string) $req->header('X-Trace')));
@@ -176,7 +176,7 @@ final class AppTest extends TestCase
 
   public function testMiddlewareCanShortCircuit(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->add(new class () implements MiddlewareInterface {
         public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
         {
@@ -190,7 +190,7 @@ final class AppTest extends TestCase
 
   public function testMiddlewareAttributesAreVisibleFromRequest(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->add(new class () implements MiddlewareInterface {
         public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
         {
@@ -204,7 +204,7 @@ final class AppTest extends TestCase
 
   public function testConfigReturnsNullWithoutConfigFile(): void
   {
-    $this->assertNull((new App())->config('server.host'));
+    $this->assertNull((new Phalcon())->config('server.host'));
   }
 
   public function testFromConfigLoadsYaml(): void
@@ -214,7 +214,7 @@ final class AppTest extends TestCase
     file_put_contents($path, "database:\n  dsn: sqlite::memory:\n");
 
     try {
-      $app = App::fromConfig($path);
+      $app = Phalcon::fromConfig($path);
     } finally {
       unlink($path);
     }
@@ -227,7 +227,7 @@ final class AppTest extends TestCase
   {
     $this->expectException(ConfigException::class);
 
-    App::fromConfig('/nonexistent/phalcon.yaml');
+    Phalcon::fromConfig('/nonexistent/phalcon.yaml');
   }
 
   public function testRendersViewFromConfiguredDirectory(): void
@@ -238,7 +238,7 @@ final class AppTest extends TestCase
     file_put_contents("{$dir}/views/users/show.php", '<h1>Hello, <?= e($name) ?></h1>');
 
     try {
-      $app = App::fromConfig("{$dir}/phalcon.yaml")
+      $app = Phalcon::fromConfig("{$dir}/phalcon.yaml")
         ->get('/users/{id}', fn (Request $req) => Response::view('users/show', ['name' => $req->param('id')]))
         ->get('/missing', fn (Request $req) => Response::view('missing'));
 
@@ -256,7 +256,7 @@ final class AppTest extends TestCase
 
   public function testViewWithoutRendererReturnsInternalServerError(): void
   {
-    $app = (new App())->get('/', fn (Request $req) => Response::view('index'));
+    $app = (new Phalcon())->get('/', fn (Request $req) => Response::view('index'));
 
     $response = $this->silenceErrorLog(fn () => $this->send($app, 'GET', '/'));
 
@@ -265,7 +265,7 @@ final class AppTest extends TestCase
 
   public function testUseRendererReplacesTemplateEngine(): void
   {
-    $app = (new App())
+    $app = (new Phalcon())
       ->useRenderer(new class () implements Renderer {
         public function render(string $name, array $data): string
         {
@@ -305,7 +305,7 @@ final class AppTest extends TestCase
     };
   }
 
-  private function send(App $app, string $method, string $target, string $body = ''): ResponseInterface
+  private function send(Phalcon $app, string $method, string $target, string $body = ''): ResponseInterface
   {
     $factory = new Psr17Factory();
     $request = $factory->createServerRequest($method, $target)->withBody($factory->createStream($body));

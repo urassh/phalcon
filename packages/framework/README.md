@@ -1,7 +1,7 @@
 # urassh/phalcon-framework
 
 ルートとハンドラを登録して使う小さな Web フレームワーク。
-`App` は PSR-15 の `RequestHandlerInterface` を実装しているので、PSR-15 のハンドラを動かせるサーバならどれでも起動できる。
+`Phalcon` は PSR-15 の `RequestHandlerInterface` を実装しているので、PSR-15 のハンドラを動かせるサーバならどれでも起動できる。
 ループやソケットには依存しない。
 
 > このリポジトリは [urassh/phalcon](https://github.com/urassh/phalcon) モノレポから split した読み取り専用のコピー。Issue と PR はモノレポで受け付ける。
@@ -23,12 +23,12 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-use Urassh\Phalcon\App;
+use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Http\HttpServer;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
-$app = new App();
+$app = new Phalcon();
 
 $app->get('/', fn (Request $req) => Response::text("Hello, world!\n"));
 
@@ -38,7 +38,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-(new HttpServer())->serve($app, host: '0.0.0.0', port: 8080);
+(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app);
 ```
 
 ```sh
@@ -52,7 +52,7 @@ $ curl http://localhost:8080/users/42
 
 | 型 | 役割 |
 |---|---|
-| `Urassh\Phalcon\App` | ルートとミドルウェアの登録、設定の読み込み。PSR-15 の `RequestHandlerInterface` |
+| `Urassh\Phalcon\Phalcon` | ルートとミドルウェアの登録、設定の読み込み。PSR-15 の `RequestHandlerInterface` |
 | `Urassh\Phalcon\Request` | ハンドラが受け取るリクエスト |
 | `Urassh\Phalcon\Response` | ハンドラが返すレスポンス |
 | `Urassh\Phalcon\Renderer` | テンプレートエンジンを差し替えるときに実装するインターフェース |
@@ -85,7 +85,7 @@ database:
 ```
 
 ```php
-$app = App::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
 
 $pdo = new PDO(
   $app->config('database.dsn'),
@@ -95,18 +95,17 @@ $pdo = new PDO(
 
 $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']));
 
-(new HttpServer())->serve(
-  $app,
+(new HttpServer(
   host: $app->config('server.host') ?? '0.0.0.0',
   port: $app->config('server.port') ?? 8080,
   workers: $app->config('server.workers') ?? 1,
-);
+))->serve($app);
 ```
 
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
 - 値に `${NAME}` と書くと環境変数 `NAME` の値に置き換える。未定義の環境変数を参照するとエラーになる。パスワードなどはこの方法で YAML の外から渡す
-- `server.host` / `server.port` / `server.workers` は `App` が使うわけではなく、`$app->config()` で取り出してサーバに渡す。`App::fromConfig()` は型と範囲だけを検証する
-- ファイルが存在しない、YAML として不正、`server.port` や `server.workers` が整数でない、といった場合は `App::fromConfig()` が `ConfigException` を投げる
+- `server.host` / `server.port` / `server.workers` は `Phalcon` が使うわけではなく、`$app->config()` で取り出してサーバに渡す。`Phalcon::fromConfig()` は型と範囲だけを検証する
+- ファイルが存在しない、YAML として不正、`server.port` や `server.workers` が整数でない、といった場合は `Phalcon::fromConfig()` が `ConfigException` を投げる
 
 | キー | 型 | デフォルト | 説明 |
 |---|---|---|---|
@@ -117,12 +116,12 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 
 ## API
 
-### `App`
+### `Phalcon`
 
 | メソッド | 説明 |
 |---|---|
-| `new App()` | 設定ファイルを使わずに `App` を作る |
-| `App::fromConfig(string $path): self` | YAML の設定ファイルを読み込んで `App` を作る |
+| `new Phalcon()` | 設定ファイルを使わずに `Phalcon` を作る |
+| `Phalcon::fromConfig(string $path): self` | YAML の設定ファイルを読み込んで `Phalcon` を作る |
 | `get(string $path, callable $handler): self` | GET のルートを登録する |
 | `post(string $path, callable $handler): self` | POST のルートを登録する |
 | `put(string $path, callable $handler): self` | PUT のルートを登録する |
@@ -300,7 +299,7 @@ final class ShowUser
   }
 }
 
-$app = App::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
 
 $pdo = new PDO(
   $app->config('database.dsn'),
@@ -335,6 +334,8 @@ PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せ�
 
 ## 0.1 からの移行
 
+- `App` を `Phalcon` に改名した。`use Urassh\Phalcon\App;` を `use Urassh\Phalcon\Phalcon;` に書き換える
+- `HttpServer` の `host` / `port` / `workers` はコンストラクタで渡す。`(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app)`
 - パッケージ名を `urassh/phalcon` から `urassh/phalcon-framework` に変えた。名前空間 (`Urassh\Phalcon\`) は変わらない
 - `App::serve()` を削除した。`urassh/phalcon-http` の `HttpServer` に `App` を渡して起動する
 - `App::handle()` は PSR-7 の `ServerRequestInterface` を受け取り `ResponseInterface` を返す

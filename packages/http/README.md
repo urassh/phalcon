@@ -27,23 +27,23 @@ $handler = new class () implements RequestHandlerInterface {
   }
 };
 
-(new HttpServer())->serve($handler, host: '0.0.0.0', port: 8080);
+(new HttpServer(host: '0.0.0.0', port: 8080))->serve($handler);
 ```
 
-[urassh/phalcon-framework](../framework) の `App` もそのまま渡せる。
+[urassh/phalcon-framework](../framework) の `Phalcon` もそのまま渡せる。
 
 `workers` を 2 以上にすると、その数だけワーカを fork して並行に処理する。
 並行処理のモデルと制約は [urassh/phalcon-server](../server#並行処理のモデル) を参照。
 
 ```php
-(new HttpServer())->serve($handler, host: '0.0.0.0', port: 8080, workers: 4);
+(new HttpServer(host: '0.0.0.0', port: 8080, workers: 4))->serve($handler);
 ```
 
 ## 公開 API
 
 | 型 | 役割 |
 |---|---|
-| `HttpServer` | `serve(RequestHandlerInterface $handler, string $host = '0.0.0.0', int $port = 8080, int $workers = 1): never` |
+| `HttpServer` | `new HttpServer(string $host = '0.0.0.0', int $port = 8080, int $workers = 1)` で作り、`serve(RequestHandlerInterface $handler): never` で起動する |
 | `HttpProtocol` | phalcon-server の `Protocol` 実装。`Server` と組み合わせて使うとき用 |
 
 `RequestParser`, `ResponseSerializer`, `Headers` は `@internal`。

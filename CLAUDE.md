@@ -39,7 +39,7 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 | `packages/server` (phalcon-server) | `Urassh\Phalcon\Server\` | プロトコル非依存のイベントループとソケットのプラットフォーム。外部依存なし |
 | `packages/core` (phalcon-core) | `Urassh\Phalcon\Core\` | 自作の PSR-7 / PSR-17 実装 |
 | `packages/http` (phalcon-http) | `Urassh\Phalcon\Http\` | 任意の PSR-15 ハンドラを動かす HTTP/1.1 サーバ。server + core に依存 |
-| `packages/framework` (phalcon-framework) | `Urassh\Phalcon\` | ルーティング、テンプレート、YAML 設定。`App` が PSR-15 ハンドラ。core に依存 |
+| `packages/framework` (phalcon-framework) | `Urassh\Phalcon\` | ルーティング、テンプレート、YAML 設定。`Phalcon` が PSR-15 ハンドラ。core に依存 |
 
 `scripts/check-boundaries.sh` が grep で以下を強制している (CI で落ちる):
 
@@ -54,17 +54,17 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 1. `Server\Server::serve(Protocol, host, port)` が `PlatformFactory::detect()` でプラットフォームを選ぶ。Linux かつ FFI が使えれば `Platform\Linux` (epoll、`Libc` で libc を FFI ロード)、それ以外 (macOS ホストで直接動かす場合など) は `Platform\StreamSelect`
 2. `EventLoop` が接続ごとの `Connection` にバイト列をためる。ループは `Server\Protocol` インターフェース (`isComplete(string)` / `respond(string): string`) 越しにしかプロトコルを知らない
 3. `Http\HttpProtocol` が `Protocol` を実装し、`RequestParser` で core の `ServerRequest` を作って PSR-15 ハンドラに渡し、`ResponseSerializer` でバイト列に戻す。パース失敗は 400、ハンドラの例外は 500 にここで変換する
-4. framework の `App::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
+4. framework の `Phalcon::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
 
-`entrypoint.php` は `App` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 に加え、`workers: 2` で `/slow` の間も `GET /` が返ること、master を止めるとワーカも止まることを確かめているので、ルーティングやエラー応答、起動の仕方を変えたら `scripts/smoke.sh` も合わせる。
+`entrypoint.php` は `Phalcon` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 に加え、`workers: 2` で `/slow` の間も `GET /` が返ること、master を止めるとワーカも止まることを確かめているので、ルーティングやエラー応答、起動の仕方を変えたら `scripts/smoke.sh` も合わせる。
 
 `Server::serve()` は `workers >= 2` で `Supervisor` (`@internal`) に処理を渡し、ワーカを fork する。各ワーカは `SO_REUSEPORT` で同じポートに listen し、`Poller` は fork 後にワーカ側で作る。モデルと制約はルート README の「並行処理のモデル」を参照。
 
 ### フレームワーク層の公開範囲
 
-- ユーザ向け API は `App`、`Request`、`Response`、`Renderer`、`functions.php` (`autoload.files`)。ハンドラは `callable(Request): Response` で、PSR-7 は直接見せない
+- ユーザ向け API は `Phalcon`、`Request`、`Response`、`Renderer`、`functions.php` (`autoload.files`)。ハンドラは `callable(Request): Response` で、PSR-7 は直接見せない
 - `Internal\` 名前空間 (Routing / Middleware / Config / View / Http) と `@internal` メソッドは非公開扱い。server / http パッケージでは `Internal` 名前空間を使わず、公開範囲はクラスの粒度で絞る方針 (経緯は `docs/issue-3-plan.md`)
-- `Response::view()` は未描画のテンプレートを保持し、`Renderer` (既定は `Internal\View\PhpRenderer`) で描画される。`App::fromConfig()` が YAML の view ディレクトリから renderer を設定する
+- `Response::view()` は未描画のテンプレートを保持し、`Renderer` (既定は `Internal\View\PhpRenderer`) で描画される。`Phalcon::fromConfig()` が YAML の view ディレクトリから renderer を設定する
 
 ### テスト
 
