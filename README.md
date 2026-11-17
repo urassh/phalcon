@@ -116,12 +116,11 @@ $app->post('/users', function (Request $req) {
   $sort = $req->query('sort');   // ?sort=... がなければ null
   $token = $req->header('Authorization');
 
-  return Response::json(['name' => $body['name']], 201)
-    ->withHeader('Location', '/users/42');
+  return Response::created('/users/42', ['name' => $body['name']]);
 });
 ```
 
-`Response` には `text()` / `html()` / `json()` / `view()` / `redirect()` / `seeOther()` / `back()` / `noContent()` がある。ハンドラが例外を投げると `500` を返し、例外はレスポンスに含めずログに出す。
+`Response` には `text()` / `html()` / `json()` / `view()` / `redirect()` / `seeOther()` / `back()` / `created()` / `noContent()` がある。ハンドラが例外を投げると `500` を返し、例外はレスポンスに含めずログに出す。
 `NotFoundException` などの HTTP の例外を投げるとそのステータスを返し、view ディレクトリに `errors/404.php` のようなテンプレートがあればそれで描画する。`Accept: application/json` のリクエストには `{"error": メッセージ}` の JSON を返し、形式は `$app->onError()` で変えられる。
 
 ### テンプレート
