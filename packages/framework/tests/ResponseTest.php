@@ -6,9 +6,13 @@ namespace Urassh\Phalcon\Tests;
 
 use JsonException;
 use LogicException;
+use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Urassh\Phalcon\Core\Psr17Factory;
+use Urassh\Phalcon\Core\ServerRequest;
 use Urassh\Phalcon\Renderer;
+use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
 final class ResponseTest extends TestCase
@@ -44,6 +48,78 @@ final class ResponseTest extends TestCase
   public function testRedirectAcceptsStatus(): void
   {
     $this->assertSame(303, Response::redirect('/users', 303)->status());
+  }
+
+  public function testSeeOtherRedirectsWith303(): void
+  {
+    $response = Response::seeOther('/memos');
+
+    $this->assertSame(303, $response->status());
+    $this->assertSame('/memos', $response->header('Location'));
+  }
+
+  public function testBackRedirectsToSameOriginReferer(): void
+  {
+    $response = Response::back($this->requestFrom('http://localhost:8080/memos/1/edit?tab=a'));
+
+    $this->assertSame(302, $response->status());
+    $this->assertSame('/memos/1/edit?tab=a', $response->header('Location'));
+  }
+
+  public function testBackAcceptsRelativeRefererAndStatus(): void
+  {
+    $response = Response::back($this->requestFrom('/memos'), status: 303);
+
+    $this->assertSame(303, $response->status());
+    $this->assertSame('/memos', $response->header('Location'));
+  }
+
+  #[DataProvider('unsafeReferers')]
+  public function testBackFallsBackOnMissingOrUnsafeReferer(?string $referer): void
+  {
+    $response = Response::back($this->requestFrom($referer), '/memos');
+
+    $this->assertSame('/memos', $response->header('Location'));
+  }
+
+  /**
+   * @return array<string, array{?string}>
+   */
+  public static function unsafeReferers(): array
+  {
+    return [
+      'missing' => [null],
+      'other host' => ['http://evil.com/memos'],
+      'other port' => ['http://localhost:9999/memos'],
+      'protocol relative' => ['//evil.com/memos'],
+      'double slash path' => ['http://localhost:8080//evil.com'],
+      'backslash' => ['/\\evil.com'],
+      'javascript scheme' => ['javascript:alert(1)'],
+      'malformed' => ['http:///'],
+    ];
+  }
+
+  public function testNoContentHasEmptyBodyWithoutContentType(): void
+  {
+    $response = Response::noContent();
+
+    $this->assertSame(204, $response->status());
+    $this->assertNull($response->header('Content-Type'));
+    $this->assertSame('', $response->body());
+  }
+
+  public function testWithHeaderRejectsHeaderInjection(): void
+  {
+    $this->expectException(InvalidArgumentException::class);
+
+    Response::redirect("/memos\r\nSet-Cookie: a=b");
+  }
+
+  public function testWithHeaderRejectsInvalidName(): void
+  {
+    $this->expectException(InvalidArgumentException::class);
+
+    Response::text('')->withHeader("X-Test\r\n", 'a');
   }
 
   public function testJsonEncodesDataAndSetsContentType(): void
@@ -119,5 +195,15 @@ final class ResponseTest extends TestCase
     $this->expectException(LogicException::class);
 
     Response::view('index')->toPsr(new Psr17Factory());
+  }
+
+  private function requestFrom(?string $referer): Request
+  {
+    $headers = ['Host' => 'localhost:8080'];
+    if ($referer !== null) {
+      $headers['Referer'] = $referer;
+    }
+
+    return new Request(new ServerRequest('POST', '/memos', $headers));
   }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Urassh\Phalcon;
 
+use InvalidArgumentException;
 use LogicException;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -58,11 +59,69 @@ final class Response
   /**
    * $location へリダイレクトする。ボディは空
    *
-   * フォームの POST のあとに GET で戻す場合は 303、メソッドとボディを保ったまま転送する場合は 307 / 308 を指定する
+   * フォームの POST のあとに GET で戻す場合は seeOther()、メソッドとボディを保ったまま転送する場合は 307 / 308 を指定する
    */
   public static function redirect(string $location, int $status = 302): self
   {
     return (new self('', $status, []))->withHeader('Location', $location);
+  }
+
+  /**
+   * 303 See Other で $location へリダイレクトする。フォームの POST のあとに一覧や詳細へ GET で戻すときに使う
+   */
+  public static function seeOther(string $location): self
+  {
+    return self::redirect($location, 303);
+  }
+
+  /**
+   * Referer のページへ戻る。Referer がない、またはほかのサイトを指している場合は $fallback へ戻す
+   *
+   * 戻り先にはパスとクエリ文字列だけを使い、外部のサイトへは飛ばさない (オープンリダイレクトを防ぐ)
+   */
+  public static function back(Request $request, string $fallback = '/', int $status = 302): self
+  {
+    return self::redirect(self::sameOriginPath($request) ?? $fallback, $status);
+  }
+
+  /**
+   * 204 No Content。ボディは空で、Content-Type も付けない
+   */
+  public static function noContent(): self
+  {
+    return new self('', 204, []);
+  }
+
+  /**
+   * Referer が同じホストを指していれば、そのパスとクエリ文字列を返す。それ以外は null
+   */
+  private static function sameOriginPath(Request $request): ?string
+  {
+    $referer = $request->header('Referer');
+    if ($referer === null) {
+      return null;
+    }
+
+    $parts = parse_url($referer);
+    if ($parts === false) {
+      return null;
+    }
+
+    if (isset($parts['scheme']) || isset($parts['host'])) {
+      $scheme = strtolower($parts['scheme'] ?? '');
+      $host = strtolower(($parts['host'] ?? '') . (isset($parts['port']) ? ":{$parts['port']}" : ''));
+      if (!in_array($scheme, ['http', 'https'], true) || $host !== strtolower((string) $request->header('Host'))) {
+        return null;
+      }
+    }
+
+    $path = $parts['path'] ?? '/';
+    // `//evil.com` や `/\evil.com` はブラウザが別のホストとして解釈する
+    if (!str_starts_with($path, '/') || str_starts_with($path, '//') || str_contains($path, '\\')) {
+      return null;
+    }
+
+    return isset($parts['query']) ? "{$path}?{$parts['query']}" : $path;
   }
 
   private static function withContentType(string $body, int $status, string $contentType): self
@@ -75,8 +134,19 @@ final class Response
     return new self($this->body, $status, $this->headers, $this->view);
   }
 
+  /**
+   * @throws InvalidArgumentException ヘッダ名がトークンでない、または値に改行や NUL を含む場合
+   */
   public function withHeader(string $name, string $value): self
   {
+    // ヘッダインジェクションを防ぐ。描画前のこの時点で弾けば、ハンドラの例外として 500 になる
+    if (preg_match('/\A[A-Za-z0-9!#$%&\'*+\-.^_`|~]+\z/', $name) !== 1) {
+      throw new InvalidArgumentException("Invalid header name: {$name}");
+    }
+    if (strpbrk($value, "\r\n\0") !== false) {
+      throw new InvalidArgumentException("Header value must not contain CR, LF or NUL: {$name}");
+    }
+
     $headers = $this->headers;
     $headers[strtolower($name)] = [$name, $value];
 
