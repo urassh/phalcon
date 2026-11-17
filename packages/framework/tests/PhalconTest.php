@@ -220,6 +220,30 @@ final class PhalconTest extends TestCase
     (new Phalcon())->resources('/users', $this->fullController(), except: ['delete']);
   }
 
+  public function testControllerCanRedirect(): void
+  {
+    $app = (new Phalcon())->resources('/users', new class () extends Controller {
+      public function create(Request $req): Response
+      {
+        return self::redirect('/users/42');
+      }
+
+      public function destroy(Request $req): Response
+      {
+        return self::redirect('/users', 302);
+      }
+    });
+
+    $created = $this->send($app, 'POST', '/users');
+    $this->assertSame(303, $created->getStatusCode());
+    $this->assertSame('/users/42', $created->getHeaderLine('Location'));
+    $this->assertSame('', (string) $created->getBody());
+
+    $destroyed = $this->send($app, 'DELETE', '/users/1');
+    $this->assertSame(302, $destroyed->getStatusCode());
+    $this->assertSame('/users', $destroyed->getHeaderLine('Location'));
+  }
+
   public function testResourcesRejectsOnlyActionNotDefinedByController(): void
   {
     $controller = new class () extends Controller {

@@ -204,6 +204,18 @@ $app->resources('/users', new UsersController());
 - アクションは `Request` を受け取って `Response` を返す public メソッド。定義していないアクションのルートは登録しない
 - `/users/new` は `/users/{id}` より先に登録されるので、`new` を定義していれば `show` に `new` が渡ることはない
 
+継承したクラスでは `redirect()` でリダイレクトを返せる。ステータスの既定は `303 See Other`。
+
+```php
+public function create(Request $req): Response
+{
+  $id = $this->users->create($req->json());
+
+  return self::redirect("/users/{$id}");      // 303
+  // return self::redirect('/users', 302);   // ステータスを指定する場合
+}
+```
+
 登録するアクションは名前付き引数 `only` / `except` で絞れる。
 
 ```php
