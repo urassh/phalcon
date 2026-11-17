@@ -32,7 +32,7 @@ $handler = new class () implements RequestHandlerInterface {
 
 [urassh/phalcon-framework](../framework) の `App` もそのまま渡せる。
 
-`workers` を 2 以上にすると、その数だけワーカを fork して並行に処理する (pcntl と posix の拡張が必要)。
+`workers` を 2 以上にすると、その数だけワーカを fork して並行に処理する。
 並行処理のモデルと制約は [urassh/phalcon-server](../server#並行処理のモデル) を参照。
 
 ```php

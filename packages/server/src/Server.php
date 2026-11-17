@@ -28,7 +28,7 @@ final class Server
   /**
    * サーバを起動する。プロセスが終了するまで戻らない
    *
-   * @param int $workers 2 以上ならその数だけワーカを fork し、SO_REUSEPORT で接続を振り分ける (pcntl と posix が必要)
+   * @param int $workers 2 以上ならその数だけワーカを fork し、SO_REUSEPORT で接続を振り分ける
    * @throws InvalidArgumentException $workers が 1 未満
    * @throws RuntimeException $workers が 2 以上で pcntl / posix がない
    */

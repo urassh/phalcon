@@ -48,7 +48,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 ## 並行処理のモデル
 
 - 1 プロセスの中では、epoll (Linux + FFI) か `stream_select` で接続の読み書きを多重化する。ただしハンドラはイベントループと同じスレッドで直列に呼ばれるので、`sleep()` や遅い DB クエリ、外部 API 呼び出しの間はそのプロセス全体が止まる
-- `workers` を 2 以上にすると、その数だけワーカプロセスを fork する。各ワーカは `SO_REUSEPORT` 付きで同じアドレスに listen し、接続の振り分けはカーネルに任せる。同時に処理できるリクエストはワーカ数まで。pcntl と posix の拡張が必要
+- `workers` を 2 以上にすると、その数だけワーカプロセスを fork する。各ワーカは `SO_REUSEPORT` 付きで同じアドレスに listen し、接続の振り分けはカーネルに任せる。同時に処理できるリクエストはワーカ数まで
 
   ```php
   (new HttpServer())->serve($app, host: '0.0.0.0', port: 8080, workers: 4);

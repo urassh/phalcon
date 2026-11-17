@@ -112,7 +112,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 |---|---|---|---|
 | `server.host` | `string` | なし | 待ち受けるアドレス (サーバに渡す用) |
 | `server.port` | `int` | なし | 待ち受けるポート (サーバに渡す用) |
-| `server.workers` | `int` (1 以上) | なし | ワーカプロセスの数 (サーバに渡す用)。2 以上には pcntl と posix の拡張が必要 |
+| `server.workers` | `int` (1 以上) | なし | ワーカプロセスの数 (サーバに渡す用) |
 | `view.directory` | `string` | なし | テンプレートを置くディレクトリ。`Response::view()` を使うなら必須 |
 
 ## API

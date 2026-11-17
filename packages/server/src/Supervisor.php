@@ -13,8 +13,6 @@ use Urassh\Phalcon\Server\Port\SocketException;
  * ワーカを fork して監視する。各ワーカは SO_REUSEPORT 付きで同じアドレスに listen し、
  * 接続の割り振りはカーネルに任せる
  *
- * pcntl と posix の拡張が必要
- *
  * @internal
  */
 final class Supervisor

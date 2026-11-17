@@ -37,7 +37,7 @@ $echo = new class () implements Protocol {
 (new Server())->serve($echo, host: '127.0.0.1', port: 9000);
 ```
 
-`workers` を 2 以上にすると、その数だけワーカを fork して並行に処理する (pcntl と posix の拡張が必要)。
+`workers` を 2 以上にすると、その数だけワーカを fork して並行に処理する。
 
 ```php
 (new Server())->serve($echo, host: '127.0.0.1', port: 9000, workers: 4);
