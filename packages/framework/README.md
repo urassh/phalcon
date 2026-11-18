@@ -25,6 +25,7 @@ require __DIR__ . '/vendor/autoload.php';
 
 use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Http\HttpServer;
+use Urassh\Phalcon\Http\PhalconServerTransport;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
@@ -38,7 +39,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app);
+(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app);
 ```
 
 ```sh
@@ -101,11 +102,11 @@ $pdo = new PDO(
 
 $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']));
 
-(new HttpServer(
+(new HttpServer(new PhalconServerTransport(
   host: $app->config('server.host') ?? '0.0.0.0',
   port: $app->config('server.port') ?? 8080,
   workers: $app->config('server.workers') ?? 1,
-))->serve($app);
+)))->serve($app);
 ```
 
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
@@ -561,7 +562,7 @@ PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せ�
 ## 0.1 からの移行
 
 - `App` を `Phalcon` に改名した。`use Urassh\Phalcon\App;` を `use Urassh\Phalcon\Phalcon;` に書き換える
-- `HttpServer` の `host` / `port` / `workers` はコンストラクタで渡す。`(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app)`
+- `HttpServer` の `host` / `port` / `workers` はサーバ層の `PhalconServerTransport` に渡す。`(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app)`。`urassh/phalcon-server` も `composer require` する
 - `Renderer` に `exists(string $name): bool` が増えた。独自の `Renderer` を実装している場合は追加する
 - パッケージ名を `urassh/phalcon` から `urassh/phalcon-framework` に変えた。名前空間 (`Urassh\Phalcon\`) は変わらない
 - `App::serve()` を削除した。`urassh/phalcon-http` の `HttpServer` に `App` を渡して起動する

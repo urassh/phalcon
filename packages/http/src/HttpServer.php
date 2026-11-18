@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace Urassh\Phalcon\Http;
 
+use LogicException;
 use Psr\Http\Server\RequestHandlerInterface;
-use Urassh\Phalcon\Server\Server;
 
 /**
  * PSR-15 のハンドラを HTTP サーバとして動かす
  */
 final class HttpServer
 {
+  private readonly Transport $transport;
+
   /**
-   * @param int $workers 2 以上ならその数だけワーカを fork する。ワーカ間でメモリ上の状態は共有されない
+   * @param Transport|null $transport 待ち受け先などはサーバ層に渡す。省略すると urassh/phalcon-server で 0.0.0.0:8080 を待ち受ける
+   * @throws LogicException $transport を省略し、urassh/phalcon-server もインストールされていない
    */
-  public function __construct(
-    private readonly string $host = '0.0.0.0',
-    private readonly int $port = 8080,
-    private readonly int $workers = 1,
-    private readonly Server $server = new Server(),
-  ) {
+  public function __construct(?Transport $transport = null)
+  {
+    $this->transport = $transport ?? self::defaultTransport();
   }
 
   /**
@@ -28,6 +28,17 @@ final class HttpServer
    */
   public function serve(RequestHandlerInterface $handler): never
   {
-    $this->server->serve(new HttpProtocol($handler), $this->host, $this->port, $this->workers);
+    $this->transport->serve(new HttpProtocol($handler));
+  }
+
+  private static function defaultTransport(): Transport
+  {
+    if (!PhalconServerTransport::isAvailable()) {
+      throw new LogicException(
+        'No server layer is configured: install urassh/phalcon-server or pass a Transport to HttpServer',
+      );
+    }
+
+    return new PhalconServerTransport();
   }
 }
