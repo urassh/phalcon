@@ -220,7 +220,62 @@ DB と組み合わせる例や、常駐プロセスで気をつけることも [
 - multipart/form-data のパース
 - 1 MiB を超えるリクエスト
 
-本番で使うなら、HTTPS の終端などはリバースプロキシに任せる。
+本番で使うなら、HTTPS の終端などはリバースプロキシに任せるか、次の節のように nginx + PHP-FPM の上で動かす。
+
+## PHP-FPM で動かす
+
+`Phalcon` は PSR-15 のハンドラなので、`HttpServer` を使わずに nginx + PHP-FPM の上でも動く。
+HTTP のパースや接続の管理は nginx と FPM が受け持ち、phalcon-http と phalcon-server は要らない。
+
+```sh
+composer require urassh/phalcon-framework
+```
+
+1 リクエストごとに実行されるスクリプトで、スーパーグローバルから PSR-7 のリクエストを作り、応答を書き出す。
+
+```php
+<?php
+// public/index.php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Urassh\Phalcon\Core\SapiEmitter;
+use Urassh\Phalcon\Core\ServerRequest;
+use Urassh\Phalcon\Phalcon;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Response;
+
+$app = new Phalcon();
+
+$app->get('/users/{id}', fn (Request $req) => Response::json(['id' => $req->param('id')]));
+
+(new SapiEmitter())->emit($app->handle(ServerRequest::fromGlobals()));
+```
+
+```nginx
+server {
+  listen 80;
+  root /var/www/public;
+
+  location / {
+    try_files $uri /index.php$is_args$args;
+  }
+
+  location = /index.php {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+    fastcgi_pass php-fpm:9000;
+  }
+}
+```
+
+手元で試すだけなら `php -S localhost:8080 public/index.php` でも動く。
+
+- 上の「並行処理のモデル」と「制限」は `HttpServer` の話。FPM ではプロセス数や keep-alive、リクエストの大きさは nginx と FPM の設定で決まる
+- `Phalcon` はリクエストごとに組み立て直される。static 変数などに入れた値は次のリクエストに残らない
+- アップロードされたファイル (`$_FILES`) はまだリクエストに入れない
 
 ## パッケージ
 
