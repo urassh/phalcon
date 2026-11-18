@@ -59,6 +59,7 @@ check() {
 check 'GET /'           200 'Hello, world!' "$BASE_URL/"
 check 'GET /users/42'   200 '{"id":"42"}'   "$BASE_URL/users/42"
 check 'POST /echo'      200 'hello'         -X POST --data-raw 'hello' "$BASE_URL/echo"
+check 'cross-site POST' 403 ''              -X POST --data-raw 'hello' -H 'Sec-Fetch-Site: cross-site' "$BASE_URL/echo"
 check 'GET /missing'    404 ''              "$BASE_URL/missing"
 check 'DELETE /'        405 ''              -X DELETE "$BASE_URL/"
 check 'malformed'       400 ''              -X 'BAD REQUEST' "$BASE_URL/"

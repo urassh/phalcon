@@ -489,6 +489,101 @@ final class PhalconTest extends TestCase
     $this->assertSame('urassh', (string) $this->send($app, 'GET', '/')->getBody());
   }
 
+  public function testMiddlewareHttpExceptionBecomesErrorResponse(): void
+  {
+    $app = (new Phalcon())
+      ->add(new class () implements MiddlewareInterface {
+        public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+        {
+          throw new UnauthorizedException(headers: ['WWW-Authenticate' => 'Bearer']);
+        }
+      })
+      ->get('/', fn (Request $req) => Response::text('unreachable'));
+
+    $response = $this->send($app, 'GET', '/');
+    $this->assertSame(401, $response->getStatusCode());
+    $this->assertSame('Bearer', $response->getHeaderLine('WWW-Authenticate'));
+    $this->assertSame("Unauthorized\n", (string) $response->getBody());
+
+    $json = $this->send($app, 'GET', '/', headers: ['Accept' => 'application/json']);
+    $this->assertSame('{"error":"Unauthorized"}', (string) $json->getBody());
+  }
+
+  public function testBlocksCrossOriginRequestsBeforeMiddleware(): void
+  {
+    $app = (new Phalcon())
+      ->add($this->tagMiddleware('user'))
+      ->get('/memos', fn (Request $req) => Response::text('index'))
+      ->post('/memos', fn (Request $req) => Response::text('created', 201))
+      ->delete('/memos/{id}', fn (Request $req) => Response::noContent());
+    $crossSite = ['Sec-Fetch-Site' => 'cross-site'];
+
+    $blocked = $this->send($app, 'POST', '/memos', headers: $crossSite);
+    $this->assertSame(403, $blocked->getStatusCode());
+    $this->assertSame("Cross-origin request blocked\n", (string) $blocked->getBody());
+    // add() したミドルウェアまで届かない
+    $this->assertSame('', $blocked->getHeaderLine('X-Trace'));
+    $this->assertSame(403, $this->send($app, 'DELETE', '/memos/1', headers: $crossSite)->getStatusCode());
+
+    // 外部サイトからのリンクで GET するのは通常の遷移なので通す
+    $this->assertSame('index', (string) $this->send($app, 'GET', '/memos', headers: $crossSite)->getBody());
+
+    $sameOrigin = $this->send($app, 'POST', '/memos', headers: ['Sec-Fetch-Site' => 'same-origin']);
+    $this->assertSame(201, $sameOrigin->getStatusCode());
+    $this->assertSame('user', $sameOrigin->getHeaderLine('X-Trace'));
+
+    $this->assertSame(201, $this->send($app, 'POST', '/memos', headers: ['Origin' => 'http://localhost:8080', 'Host' => 'localhost:8080'])->getStatusCode());
+    $this->assertSame(201, $this->send($app, 'POST', '/memos')->getStatusCode());
+  }
+
+  public function testCrossOriginErrorUsesErrorHandling(): void
+  {
+    $dir = sys_get_temp_dir() . '/phalcon-app-csrf-' . bin2hex(random_bytes(4));
+    mkdir("{$dir}/views/errors", 0777, true);
+    file_put_contents("{$dir}/phalcon.yaml", "view:\n  directory: views\n");
+    file_put_contents("{$dir}/views/errors/403.php", '<h1><?= e((string) $status) ?> <?= e($message) ?></h1>');
+
+    try {
+      $app = Phalcon::fromConfig("{$dir}/phalcon.yaml")
+        ->onError(fn (HttpException $e, Request $req) => str_starts_with($req->path(), '/api/')
+          ? Response::json(['code' => $e->status()], $e->status())
+          : null)
+        ->post('/memos', fn (Request $req) => Response::text('created', 201))
+        ->post('/api/memos', fn (Request $req) => Response::text('created', 201));
+      $crossSite = ['Sec-Fetch-Site' => 'cross-site'];
+
+      $page = $this->send($app, 'POST', '/memos', headers: $crossSite);
+      $api = $this->send($app, 'POST', '/api/memos', headers: $crossSite);
+    } finally {
+      exec('rm -rf ' . escapeshellarg($dir));
+    }
+
+    $this->assertSame(403, $page->getStatusCode());
+    $this->assertSame('<h1>403 Cross-origin request blocked</h1>', (string) $page->getBody());
+
+    $this->assertSame(403, $api->getStatusCode());
+    $this->assertSame('{"code":403}', (string) $api->getBody());
+  }
+
+  public function testFromConfigTrustsConfiguredOrigins(): void
+  {
+    $path = tempnam(sys_get_temp_dir(), 'phalcon');
+    $this->assertIsString($path);
+    file_put_contents($path, "csrf:\n  trusted_origins:\n    - https://app.example.com\n");
+
+    try {
+      $app = Phalcon::fromConfig($path)->post('/memos', fn (Request $req) => Response::text('created', 201));
+    } finally {
+      unlink($path);
+    }
+
+    $trusted = $this->send($app, 'POST', '/memos', headers: ['Sec-Fetch-Site' => 'cross-site', 'Origin' => 'https://app.example.com']);
+    $this->assertSame(201, $trusted->getStatusCode());
+
+    $other = $this->send($app, 'POST', '/memos', headers: ['Sec-Fetch-Site' => 'cross-site', 'Origin' => 'https://evil.example']);
+    $this->assertSame(403, $other->getStatusCode());
+  }
+
   public function testConfigReturnsNullWithoutConfigFile(): void
   {
     $this->assertNull((new Phalcon())->config('server.host'));

@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Urassh\Phalcon\Exception\HttpException;
 use Urassh\Phalcon\Request;
 
 /**
@@ -26,5 +27,13 @@ final class RouterHandler implements RequestHandlerInterface
   public function handle(ServerRequestInterface $request): ResponseInterface
   {
     return $this->router->handle(new Request($request))->toPsr($this->factory);
+  }
+
+  /**
+   * ルーティングの外 (ミドルウェア) で投げられた HttpException を、ハンドラのときと同じ形式のレスポンスにする
+   */
+  public function error(HttpException $e, ServerRequestInterface $request): ResponseInterface
+  {
+    return $this->router->error($e, new Request($request))->toPsr($this->factory);
   }
 }

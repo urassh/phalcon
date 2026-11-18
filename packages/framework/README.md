@@ -79,7 +79,11 @@ server:
 view:
   directory: views
 
-# server / view 以外のキーは利用者が自由に使える
+csrf:
+  trusted_origins:
+    - https://app.example.com
+
+# server / view / csrf 以外のキーは利用者が自由に使える
 database:
   dsn: mysql:host=db;dbname=app
   user: app
@@ -115,6 +119,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `server.port` | `int` | なし | 待ち受けるポート (サーバに渡す用) |
 | `server.workers` | `int` (1 以上) | なし | ワーカプロセスの数 (サーバに渡す用) |
 | `view.directory` | `string` | なし | テンプレートを置くディレクトリ。`Response::view()` を使うなら必須 |
+| `csrf.trusted_origins` | `list<string>` | `[]` | 別オリジンでも POST などを通すオリジン ([CSRF 対策](#csrf-対策)) |
 
 ## API
 
@@ -135,7 +140,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `useRenderer(Renderer $renderer): self` | `Response::view()` で使うテンプレートエンジンを差し替える |
 | `onError(callable $handler): self` | エラーレスポンスの形式を決めるフックを登録する ([エラーの形式を変える](#エラーの形式を変える)) |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
-| `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。ミドルウェアを通してからルーティングする |
+| `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。[CSRF 対策](#csrf-対策)とミドルウェアを通してからルーティングする |
 
 ルート登録メソッドは `$this` を返すので、チェーンして書ける。
 
@@ -159,6 +164,29 @@ $app->add(new class () implements MiddlewareInterface {
   }
 });
 ```
+
+ミドルウェアから `HttpException` を投げた場合も、ハンドラから投げたときと同じエラーレスポンス (`onError()`、JSON、エラーページ、テキスト) になる。
+
+#### CSRF 対策
+
+別のサイトのページからブラウザに送らせた POST / PUT / PATCH / DELETE などは、`403 Forbidden` で拒否する。
+常に有効で、ミドルウェアを追加したりフォームにトークンを埋め込んだりする必要はない。`add()` したミドルウェアより外側で動く。
+
+トークンは使わず、ブラウザが付ける `Sec-Fetch-Site` ヘッダで判定する (Go の `net/http.CrossOriginProtection` と同じ方式)。
+
+1. GET / HEAD / OPTIONS は通す
+2. `Origin` が `csrf.trusted_origins` に含まれていれば通す
+3. `Sec-Fetch-Site` があれば、`same-origin` か `none` (URL の直接入力など) のときだけ通す。`same-site` (別のサブドメイン) も拒否する
+4. `Sec-Fetch-Site` がなく `Origin` があれば、`Origin` のホストとポートが `Host` と一致するときだけ通す
+5. どちらのヘッダもなければ通す (`curl` などブラウザ以外のクライアント)
+
+- 同じオリジンのページからの `fetch()` や、`curl` などからの API 呼び出しはそのまま通る。API のパスを除外する設定は要らない
+- `Sec-Fetch-Site` は HTTPS か localhost でしか送られない。`http://192.168.0.10:8080` のような環境では 4 の `Origin` の比較で判定する
+- リバースプロキシが `Host` を書き換える構成や、別オリジンのフロントエンドから呼ぶ構成では、そのオリジンを `csrf.trusted_origins` に `https://app.example.com` の形 (末尾の `/` やパスなし) で書く
+- GET は判定しないので、状態を変える処理は POST / PUT / PATCH / DELETE のルートにする
+- どちらのヘッダも付けない古いブラウザからのリクエストは通る
+
+拒否したときのメッセージは `Cross-origin request blocked`。`errors/403.php` や `onError()` の扱いはハンドラが投げた例外と同じ。
 
 #### ハンドラ
 
@@ -348,7 +376,8 @@ interface Renderer
 | `$req->json()` でボディが不正な JSON | `400 Bad Request` |
 | パスにマッチするルートがない | `404 Not Found` |
 | パスはマッチするがメソッドが違う | `405 Method Not Allowed` (`Allow` ヘッダ付き) |
-| ハンドラが `HttpException` を投げた | 例外のステータス、メッセージ、ヘッダ |
+| 別オリジンから POST などが送られた | `403 Forbidden` ([CSRF 対策](#csrf-対策)) |
+| ハンドラかミドルウェアが `HttpException` を投げた | 例外のステータス、メッセージ、ヘッダ |
 | ハンドラがそれ以外の例外を投げた | `500 Internal Server Error` (例外はサーバのログに出力し、レスポンスには含めない) |
 
 #### HTTP の例外
@@ -425,7 +454,7 @@ $app->onError(function (HttpException $e, Request $req): ?Response {
 });
 ```
 
-- ハンドラが投げた `HttpException`、ルートにマッチしない 404 / 405、想定外の例外による 500 のたびに呼ばれる
+- ハンドラやミドルウェアが投げた `HttpException`、ルートにマッチしない 404 / 405、想定外の例外による 500 のたびに呼ばれる
 - 想定外の例外は `HttpException(500)` に包んで渡す。元の例外は `$e->getPrevious()` で取れるので、エラー監視サービスへの送信などに使える。レスポンスにはそのメッセージを含めないこと
 - 例外のヘッダ (405 の `Allow` など) は、返したレスポンスに同名のヘッダがなければ付ける
 - `Response::view()` を返してもよい。フック自体が例外を投げた場合は、ログに出力して既定の形式で返す

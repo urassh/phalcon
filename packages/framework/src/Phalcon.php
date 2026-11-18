@@ -15,6 +15,7 @@ use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Exception\HttpException;
 use Urassh\Phalcon\Internal\Config\Config;
+use Urassh\Phalcon\Internal\Middleware\CrossOriginProtection;
 use Urassh\Phalcon\Internal\Middleware\Pipeline;
 use Urassh\Phalcon\Internal\Routing\Router;
 use Urassh\Phalcon\Internal\Routing\RouterHandler;
@@ -47,10 +48,14 @@ final class Phalcon implements RequestHandlerInterface
   /** @var list<MiddlewareInterface> */
   private array $middleware = [];
 
+  /** 外せないよう add() のミドルウェアとは分けて持ち、常に最も外側で動かす */
+  private CrossOriginProtection $crossOrigin;
+
   public function __construct()
   {
     $this->router = new Router();
     $this->config = Config::empty();
+    $this->crossOrigin = new CrossOriginProtection();
   }
 
   /**
@@ -62,6 +67,7 @@ final class Phalcon implements RequestHandlerInterface
   {
     $app = new self();
     $app->config = Config::load($path);
+    $app->crossOrigin = new CrossOriginProtection($app->config->trustedOrigins());
 
     $directory = $app->config->viewDirectory();
     if ($directory !== null) {
@@ -235,11 +241,19 @@ final class Phalcon implements RequestHandlerInterface
 
   /**
    * リクエストを 1 件処理する。ミドルウェアを通してからルーティングする
+   *
+   * 別オリジンから送られた POST / PUT / PATCH / DELETE などは、ミドルウェアより先に 403 にする (CSRF 対策)。
+   * ミドルウェアが投げた HttpException も、ハンドラが投げたときと同じ形式のエラーレスポンスにする
    */
   public function handle(ServerRequestInterface $request): ResponseInterface
   {
-    $handler = new Pipeline($this->middleware, new RouterHandler($this->router, new Psr17Factory()));
+    $router = new RouterHandler($this->router, new Psr17Factory());
+    $handler = new Pipeline([$this->crossOrigin, ...$this->middleware], $router);
 
-    return $handler->handle($request);
+    try {
+      return $handler->handle($request);
+    } catch (HttpException $e) {
+      return $router->error($e, $request);
+    }
   }
 }

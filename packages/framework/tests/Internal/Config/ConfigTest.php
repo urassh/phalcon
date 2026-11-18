@@ -111,6 +111,28 @@ final class ConfigTest extends TestCase
     $this->assertSame('/srv/views', $this->load("view:\n  directory: /srv/views\n")->get('view.directory'));
   }
 
+  public function testReadsTrustedOriginsInLowerCase(): void
+  {
+    $config = $this->load(<<<'YAML'
+      csrf:
+        trusted_origins:
+          - https://App.Example.com
+          - http://localhost:3000
+          - http://[::1]:8080
+      YAML);
+
+    $this->assertSame(
+      ['https://app.example.com', 'http://localhost:3000', 'http://[::1]:8080'],
+      $config->trustedOrigins(),
+    );
+  }
+
+  public function testTrustedOriginsIsEmptyByDefault(): void
+  {
+    $this->assertSame([], $this->load("server:\n  port: 8080\n")->trustedOrigins());
+    $this->assertSame([], Config::empty()->trustedOrigins());
+  }
+
   public function testThrowsWhenFileDoesNotExist(): void
   {
     $this->expectException(ConfigException::class);
@@ -134,6 +156,15 @@ final class ConfigTest extends TestCase
     yield 'workers is not an integer' => ["server:\n  workers: many\n"];
     yield 'workers is negative' => ["server:\n  workers: -1\n"];
     yield 'view directory is empty' => ["view:\n  directory: ''\n"];
+    yield 'csrf is not a mapping' => ["csrf: true\n"];
+    yield 'trusted origins is not a list' => ["csrf:\n  trusted_origins: https://example.com\n"];
+    yield 'trusted origins is a mapping' => ["csrf:\n  trusted_origins:\n    app: https://example.com\n"];
+    yield 'trusted origin is not a string' => ["csrf:\n  trusted_origins: [8080]\n"];
+    yield 'trusted origin has no scheme' => ["csrf:\n  trusted_origins: [example.com]\n"];
+    yield 'trusted origin has unsupported scheme' => ["csrf:\n  trusted_origins: ['ftp://example.com']\n"];
+    yield 'trusted origin has trailing slash' => ["csrf:\n  trusted_origins: ['https://example.com/']\n"];
+    yield 'trusted origin has path' => ["csrf:\n  trusted_origins: ['https://example.com/app']\n"];
+    yield 'trusted origin has wildcard' => ["csrf:\n  trusted_origins: ['https://*.example.com']\n"];
   }
 
   #[DataProvider('invalidConfigs')]
