@@ -58,11 +58,11 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 4. `Http\HttpProtocol` が `RequestParser` で core の `ServerRequest` を作って PSR-15 ハンドラに渡し、`ResponseSerializer` でバイト列に戻す。パース失敗は 400、ハンドラの例外は 500 にここで変換する
 5. framework の `Phalcon::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
 
-framework の `Phalcon::run()` は `useServer()` で登録した `Core\Runner` に `$this` を渡す。`Runner` は framework と http の両方が依存できる core に置き、`HttpServer` (`run(): never`、上の 1〜4) と `SapiRunner` が実装する。登録がなければ、SAPI からは `SapiRunner` を使い、`ServerRequest::fromGlobals()` → `Phalcon::handle()` → `SapiEmitter::emit()` で 1 リクエストを処理して終わる (ルート README の「PHP-FPM で動かす」)。CLI からは `Core\DefaultRunner` に登録された Runner を、設定ファイルの `server.host` / `port` / `workers` を渡して作る。framework は http を参照できないので、http が `autoload.files` の `src/register.php` で `HttpServer` を登録している。何も登録されていなければ `LogicException`
+framework の `Phalcon::run()` は `useServer()` で登録した `Core\Runner` に `$this` を渡す。`Runner` は framework と http の両方が依存できる core に置き、`HttpServer` (`run(): never`、上の 1〜4) と `SapiRunner` が実装する。登録がなければ、SAPI からは `SapiRunner` を使い、`ServerRequest::fromGlobals()` → `Phalcon::handle()` → `SapiEmitter::emit()` で 1 リクエストを処理して終わる (framework の README の「PHP-FPM で動かす」)。CLI からは `Core\DefaultRunner` に登録された Runner を、設定ファイルの `server.host` / `port` / `workers` を渡して作る。framework は http を参照できないので、http が `autoload.files` の `src/register.php` で `HttpServer` を登録している。何も登録されていなければ `LogicException`
 
 `entrypoint.php` は `Phalcon` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 に加え、`workers: 2` で `/slow` の間も `GET /` が返ること、master を止めるとワーカも止まることを確かめているので、ルーティングやエラー応答、起動の仕方を変えたら `scripts/smoke.sh` も合わせる。
 
-`Server::serve()` は `workers >= 2` で `Supervisor` (`@internal`) に処理を渡し、ワーカを fork する。各ワーカは `SO_REUSEPORT` で同じポートに listen し、`Poller` は fork 後にワーカ側で作る。モデルと制約はルート README の「並行処理のモデル」を参照。
+`Server::serve()` は `workers >= 2` で `Supervisor` (`@internal`) に処理を渡し、ワーカを fork する。各ワーカは `SO_REUSEPORT` で同じポートに listen し、`Poller` は fork 後にワーカ側で作る。モデルと制約は server の README の「並行処理のモデル」を参照。
 
 ### フレームワーク層の公開範囲
 

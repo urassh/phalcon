@@ -175,6 +175,58 @@ $app->run();
 
 phalcon-framework は phalcon-http に依存しないので、phalcon-http は Composer の `autoload.files` で `HttpServer` を phalcon-core の `DefaultRunner` に登録し、`run()` はそこから見つける。設定ファイルの `server` は `DefaultRunner::create()` の引数として渡す。
 
+#### PHP-FPM で動かす
+
+nginx + PHP-FPM や Apache (mod_php) の上で動かすときは、phalcon-framework だけを入れればよい。HTTP の処理はそれらのサーバが受け持つので、phalcon-http と phalcon-server は要らない。
+
+```sh
+composer require urassh/phalcon-framework
+```
+
+1 リクエストごとに実行されるスクリプトで `run()` する。SAPI から呼ばれた `run()` は、スーパーグローバルからリクエストを作り、応答を `header()` と `echo` で書き出す。
+
+```php
+<?php
+// public/index.php
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use Urassh\Phalcon\Phalcon;
+use Urassh\Phalcon\Request;
+use Urassh\Phalcon\Response;
+
+$app = new Phalcon();
+
+$app->get('/users/{id}', fn (Request $req) => Response::json(['id' => $req->param('id')]));
+
+$app->run();
+```
+
+nginx では、ファイルとして存在しないパスを `index.php` に渡す。
+
+```nginx
+server {
+  listen 80;
+  root /var/www/public;
+
+  location / {
+    try_files $uri /index.php$is_args$args;
+  }
+
+  location = /index.php {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+    fastcgi_pass php-fpm:9000;
+  }
+}
+```
+
+手元で試すだけなら `php -S localhost:8080 public/index.php` でも動く。
+
+- プロセス数や keep-alive、リクエストの大きさは nginx と FPM の設定で決まる。設定ファイルの `server` は使わない
+- `Phalcon` はリクエストごとに組み立て直されるので、static 変数などに入れた値は次のリクエストに残らない
+- アップロードされたファイル (`$_FILES`) はまだリクエストに入れない
+
 #### ミドルウェア
 
 PSR-15 の `MiddlewareInterface` をそのまま使える。ミドルウェアが付けたリクエストの属性は `$req->param()` (文字列のとき) か `$req->psr()->getAttribute()` で読める。
@@ -575,7 +627,7 @@ $app->run();
 
 ### 常駐プロセスでの注意
 
-PHP-FPM と違い、`HttpServer` で `run()` したプロセスは終了せずにリクエストを処理し続ける (FPM の上で動かす方法はルートの README の「PHP-FPM で動かす」を参照)。
+[PHP-FPM](#php-fpm-で動かす) と違い、`HttpServer` で `run()` したプロセスは終了せずにリクエストを処理し続ける。
 
 - PDO の接続は起動時に 1 度だけ作り、全リクエストで使い回す。DB 側がアイドル状態の接続を切ることがあるので、長時間動かす場合は再接続を考慮する
 - static 変数やグローバル変数に入れた値は次のリクエストにも残る。リクエストごとの状態はハンドラ内のローカル変数に閉じる
