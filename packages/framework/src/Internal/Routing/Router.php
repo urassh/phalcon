@@ -25,12 +25,20 @@ final class Router
 
   private ?Renderer $renderer = null;
 
+  /** @var array<string, mixed> すべてのテンプレートに渡す値 */
+  private array $shared = [];
+
   /** @var (Closure(HttpException, Request): mixed)|null 戻り値は呼んだあとに検証する */
   private ?Closure $errorHandler = null;
 
   public function useRenderer(?Renderer $renderer): void
   {
     $this->renderer = $renderer;
+  }
+
+  public function share(string $name, mixed $value): void
+  {
+    $this->shared[$name] = $value;
   }
 
   /**
@@ -175,7 +183,7 @@ final class Router
 
     try {
       return Response::view($name, ['status' => $e->status(), 'message' => $e->getMessage()], $e->status())
-        ->render($this->renderer);
+        ->render($this->renderer, $this->shared);
     } catch (Throwable $renderError) {
       // エラーページ自体が壊れていてもテキストで応答は返す
       error_log("Failed to render error page {$name}: {$renderError}");
@@ -194,6 +202,6 @@ final class Router
       throw new ViewException('Response::view() requires view.directory in the config file or Phalcon::useRenderer()');
     }
 
-    return $response->render($this->renderer);
+    return $response->render($this->renderer, $this->shared);
   }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Urassh\Phalcon\Tests;
 
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -665,6 +666,93 @@ final class PhalconTest extends TestCase
 
     $this->assertSame(201, $response->getStatusCode());
     $this->assertSame('custom:index', (string) $response->getBody());
+  }
+
+  public function testSharedValuesReachEveryTemplate(): void
+  {
+    $dir = sys_get_temp_dir() . '/phalcon-app-share-' . bin2hex(random_bytes(4));
+    mkdir("{$dir}/views/errors", 0777, true);
+    file_put_contents("{$dir}/phalcon.yaml", "view:\n  directory: views\n");
+    file_put_contents("{$dir}/views/index.php", '<?= e($appName) ?>/<?= e($title) ?>');
+    file_put_contents("{$dir}/views/errors/404.php", '<?= e($appName) ?>/<?= e((string) $status) ?> <?= e($message) ?>');
+
+    try {
+      $app = Phalcon::fromConfig("{$dir}/phalcon.yaml")
+        ->share('appName', 'Memo')
+        ->share('title', 'Default')
+        ->share('status', 'shared')
+        ->get('/', fn (Request $req) => Response::view('index'))
+        ->get('/about', fn (Request $req) => Response::view('index', ['title' => 'About']))
+        ->get('/api/boom', fn (Request $req) => throw new ForbiddenException())
+        ->onError(fn (HttpException $e, Request $req) => str_starts_with($req->path(), '/api/')
+          ? Response::view('index', status: $e->status())
+          : null);
+
+      $index = $this->send($app, 'GET', '/');
+      $about = $this->send($app, 'GET', '/about');
+      $notFound = $this->send($app, 'GET', '/missing');
+      $hook = $this->send($app, 'GET', '/api/boom');
+
+      // 同じ名前でもう一度呼ぶと置き換える
+      $app->share('appName', 'Renamed');
+      $renamed = $this->send($app, 'GET', '/');
+    } finally {
+      exec('rm -rf ' . escapeshellarg($dir));
+    }
+
+    $this->assertSame('Memo/Default', (string) $index->getBody());
+    // view() に渡したデータが優先される
+    $this->assertSame('Memo/About', (string) $about->getBody());
+    // エラーページにも渡り、$status と $message はエラーのものが優先される
+    $this->assertSame('Memo/404 Not Found', (string) $notFound->getBody());
+    // onError() のフックが返した view にも渡る
+    $this->assertSame(403, $hook->getStatusCode());
+    $this->assertSame('Memo/Default', (string) $hook->getBody());
+    $this->assertSame('Renamed/Default', (string) $renamed->getBody());
+  }
+
+  public function testSharedValuesReachCustomRenderer(): void
+  {
+    $app = (new Phalcon())
+      ->useRenderer(new class () implements Renderer {
+        public function render(string $name, array $data): string
+        {
+          return json_encode($data, JSON_THROW_ON_ERROR);
+        }
+
+        public function exists(string $name): bool
+        {
+          return $name === 'errors/404';
+        }
+      })
+      ->share('user', ['id' => 1])
+      ->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']));
+
+    $this->assertSame('{"user":{"id":1},"title":"Top"}', (string) $this->send($app, 'GET', '/')->getBody());
+    $this->assertSame(
+      '{"user":{"id":1},"status":404,"message":"Not Found"}',
+      (string) $this->send($app, 'GET', '/missing')->getBody(),
+    );
+  }
+
+  /**
+   * @return iterable<string, array{string}>
+   */
+  public static function invalidSharedNames(): iterable
+  {
+    yield 'empty' => [''];
+    yield 'starts with digit' => ['1st'];
+    yield 'contains hyphen' => ['app-name'];
+    yield 'contains dot' => ['app.name'];
+    yield 'this' => ['this'];
+  }
+
+  #[DataProvider('invalidSharedNames')]
+  public function testShareRejectsInvalidVariableName(string $name): void
+  {
+    $this->expectException(InvalidArgumentException::class);
+
+    (new Phalcon())->share($name, 'value');
   }
 
   /**
