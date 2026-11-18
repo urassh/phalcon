@@ -27,6 +27,8 @@ $app->get('/slow', function (Request $req) {
   return Response::text("slow\n");
 });
 
-// Phalcon は PSR-15 のハンドラなので、起動は HttpServer に任せる。待ち受け先とワーカ数はサーバ層 (Transport) に渡す。
+// HttpServer を登録して run() すると常駐する。待ち受け先とワーカ数はサーバ層 (Transport) に渡す。
 // ワーカを 2 つにして、/slow の間もほかのワーカが応答できるようにする
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 2)))->serve($app);
+$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 2)));
+
+$app->run();

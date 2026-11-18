@@ -30,10 +30,10 @@ $handler = new class () implements RequestHandlerInterface {
   }
 };
 
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($handler);
+(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run($handler);
 ```
 
-[urassh/phalcon-framework](../framework) の `Phalcon` もそのまま渡せる。
+[urassh/phalcon-framework](../framework) の `Phalcon` では、`$app->useServer(new HttpServer())` で登録して `$app->run()` で起動する。
 
 待ち受け先とワーカ数はサーバ層 (`Transport`) の設定で、`HttpServer` は持たない。`HttpServer` を引数なしで作ると `new PhalconServerTransport()` (0.0.0.0:8080、ワーカ 1) を使う。
 
@@ -41,7 +41,7 @@ $handler = new class () implements RequestHandlerInterface {
 並行処理のモデルと制約は [urassh/phalcon-server](../server#並行処理のモデル) を参照。
 
 ```php
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 4)))->serve($handler);
+(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 4)))->run($handler);
 ```
 
 ### サーバ層を差し替える
@@ -66,7 +66,7 @@ final class MyTransport implements Transport
   }
 }
 
-(new HttpServer(new MyTransport('0.0.0.0:8080')))->serve($handler);
+(new HttpServer(new MyTransport('0.0.0.0:8080')))->run($handler);
 ```
 
 phalcon-server の `Server` を設定して使いたいときは `PhalconServerTransport` に渡す。
@@ -82,7 +82,7 @@ new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, server: n
 
 | 型 | 役割 |
 |---|---|
-| `HttpServer` | `new HttpServer(?Transport $transport = null)` で作り、`serve(RequestHandlerInterface $handler): never` で起動する |
+| `HttpServer` | `new HttpServer(?Transport $transport = null)` で作り、`run(RequestHandlerInterface $handler): never` で起動する。phalcon-core の `Runner` を実装するので、phalcon-framework の `Phalcon::useServer()` に渡せる |
 | `Transport` | サーバ層のインターフェース。`serve(HttpProtocol $protocol): never` |
 | `PhalconServerTransport` | phalcon-server の `Server` を使う既定の `Transport`。`new PhalconServerTransport(string $host = '0.0.0.0', int $port = 8080, int $workers = 1, ?Server $server = null)` |
 | `HttpProtocol` | リクエストのバイト列から応答のバイト列を作る。`isComplete(string): bool` と `respond(string): string` |

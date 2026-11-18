@@ -10,11 +10,13 @@ nginx や PHP-FPM を用意しなくても、`php app.php` でそのままアプ
 ```php
 $app = new Phalcon();
 
+$app->useServer(new HttpServer()); // 0.0.0.0:8080 で待ち受ける
+
 $app->get('/users/{id}', fn (Request $req) => Response::json([
   'id' => $req->param('id'),
 ]));
 
-(new HttpServer())->serve($app); // 0.0.0.0:8080 で待ち受ける
+$app->run();
 ```
 
 > C 拡張のフレームワーク [Phalcon](https://phalcon.io/) とは無関係のプロジェクト。
@@ -68,7 +70,9 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app);
+$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)));
+
+$app->run();
 ```
 
 起動してリクエストを送る。
@@ -183,11 +187,11 @@ $app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
 
 $dsn = $app->config('database.dsn');
 
-(new HttpServer(new PhalconServerTransport(
+$app->useServer(new HttpServer(new PhalconServerTransport(
   host: $app->config('server.host'),
   port: $app->config('server.port'),
   workers: $app->config('server.workers'),
-)))->serve($app);
+)))->run();
 ```
 
 DB と組み合わせる例や、常駐プロセスで気をつけることも [phalcon-framework の README](packages/framework#db-と組み合わせる) にまとめてある。
@@ -198,7 +202,7 @@ DB と組み合わせる例や、常駐プロセスで気をつけることも [
 並行に処理したいときは `workers` を増やす。その数だけワーカプロセスを fork し、同時にワーカ数までのリクエストを処理できる。
 
 ```php
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 4)))->serve($app);
+$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 4)))->run();
 ```
 
 - 各ワーカは `SO_REUSEPORT` 付きで同じアドレスに listen し、接続の振り分けはカーネルに任せる
@@ -231,7 +235,7 @@ HTTP のパースや接続の管理は nginx と FPM が受け持ち、phalcon-h
 composer require urassh/phalcon-framework
 ```
 
-1 リクエストごとに実行されるスクリプトで、スーパーグローバルから PSR-7 のリクエストを作り、応答を書き出す。
+1 リクエストごとに実行されるスクリプトで、`useServer()` を呼ばずに `run()` する。スーパーグローバルからリクエストを作り、応答を `header()` と `echo` で書き出す (phalcon-core の `SapiRunner`)。
 
 ```php
 <?php
@@ -241,8 +245,6 @@ declare(strict_types=1);
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use Urassh\Phalcon\Core\SapiEmitter;
-use Urassh\Phalcon\Core\ServerRequest;
 use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
@@ -251,7 +253,7 @@ $app = new Phalcon();
 
 $app->get('/users/{id}', fn (Request $req) => Response::json(['id' => $req->param('id')]));
 
-(new SapiEmitter())->emit($app->handle(ServerRequest::fromGlobals()));
+$app->run();
 ```
 
 ```nginx
@@ -275,6 +277,7 @@ server {
 
 - 上の「並行処理のモデル」と「制限」は `HttpServer` の話。FPM ではプロセス数や keep-alive、リクエストの大きさは nginx と FPM の設定で決まる
 - `Phalcon` はリクエストごとに組み立て直される。static 変数などに入れた値は次のリクエストに残らない
+- `useServer()` を呼ばずに CLI (`php public/index.php`) で `run()` すると、処理するリクエストがないので `LogicException` になる
 - アップロードされたファイル (`$_FILES`) はまだリクエストに入れない
 
 ## パッケージ
@@ -306,8 +309,9 @@ phalcon-http ─────────┘
 ### 次のリリースでの破壊的変更
 
 - framework の `App` を `Phalcon` に改名した (`Urassh\Phalcon\Phalcon`)
-- `HttpServer` の `host` / `port` / `workers` を `serve()` の引数から外し、サーバ層の `PhalconServerTransport` のコンストラクタに移した。`(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app)` のように書く。`Server` を渡していた場合は `new PhalconServerTransport(server: $server)` にする
+- `HttpServer` の `host` / `port` / `workers` を `serve()` の引数から外し、サーバ層の `PhalconServerTransport` のコンストラクタに移した。`$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run()` のように書く。`Server` を渡していた場合は `new PhalconServerTransport(server: $server)` にする
 - `Port\Platform::listen()` に `bool $reusePort = false` を足した。`Platform` を自前で実装している場合はシグネチャを合わせる
+- `HttpServer::serve()` を `run()` に改名した (phalcon-core の `Runner` を実装する)。framework では `$app->useServer(new HttpServer())` で登録し、`$app->run()` で起動する
 - phalcon-http が phalcon-server を require しなくなった。`HttpServer` を既定のまま使うなら `composer require urassh/phalcon-server` を足す (入っていないと `HttpServer` の生成時に `LogicException`)
 - `HttpProtocol` が phalcon-server の `Protocol` を実装しなくなった。`Server` に直接渡していた場合は `PhalconServerTransport` を使う
 

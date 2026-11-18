@@ -6,11 +6,14 @@ namespace Urassh\Phalcon\Http;
 
 use LogicException;
 use Psr\Http\Server\RequestHandlerInterface;
+use Urassh\Phalcon\Core\Runner;
 
 /**
  * PSR-15 のハンドラを HTTP サーバとして動かす
+ *
+ * phalcon-core の Runner を実装するので、phalcon-framework の Phalcon::useServer() に渡せる
  */
-final class HttpServer
+final class HttpServer implements Runner
 {
   private readonly Transport $transport;
 
@@ -26,7 +29,7 @@ final class HttpServer
   /**
    * サーバを起動する。プロセスが終了するまで戻らない
    */
-  public function serve(RequestHandlerInterface $handler): never
+  public function run(RequestHandlerInterface $handler): never
   {
     $this->transport->serve(new HttpProtocol($handler));
   }

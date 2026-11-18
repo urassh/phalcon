@@ -6,12 +6,15 @@ namespace Urassh\Phalcon;
 
 use Closure;
 use InvalidArgumentException;
+use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionMethod;
 use Urassh\Phalcon\Core\Psr17Factory;
+use Urassh\Phalcon\Core\Runner;
+use Urassh\Phalcon\Core\SapiRunner;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Exception\HttpException;
 use Urassh\Phalcon\Internal\Config\Config;
@@ -24,7 +27,10 @@ use Urassh\Phalcon\Internal\Routing\RouterHandler;
 use Urassh\Phalcon\Internal\View\PhpRenderer;
 
 /**
- * ルートを登録して PSR-15 のハンドラとして動く。起動は urassh/phalcon-http の HttpServer などに任せる
+ * ルートを登録して PSR-15 のハンドラとして動く
+ *
+ * run() で起動する。useServer() で urassh/phalcon-http の HttpServer などを登録すると常駐し、
+ * 登録しなければ PHP-FPM などの SAPI から呼ばれたものとして 1 リクエストを処理する
  */
 final class Phalcon implements RequestHandlerInterface
 {
@@ -52,6 +58,8 @@ final class Phalcon implements RequestHandlerInterface
 
   /** 外せないよう add() のミドルウェアとは分けて持ち、常に最も外側で動かす */
   private CrossOriginProtection $crossOrigin;
+
+  private ?Runner $server = null;
 
   public function __construct()
   {
@@ -93,6 +101,16 @@ final class Phalcon implements RequestHandlerInterface
   public function useRenderer(Renderer $renderer): self
   {
     $this->router->useRenderer($renderer);
+
+    return $this;
+  }
+
+  /**
+   * run() で使うサーバを登録する。urassh/phalcon-http の HttpServer など、phalcon-core の Runner を実装したものを渡す
+   */
+  public function useServer(Runner $server): self
+  {
+    $this->server = $server;
 
     return $this;
   }
@@ -277,5 +295,30 @@ final class Phalcon implements RequestHandlerInterface
     } catch (HttpException $e) {
       return $router->error($e, $request);
     }
+  }
+
+  /**
+   * アプリを動かす
+   *
+   * useServer() で登録したサーバがあればそれに任せる (HttpServer なら常駐して戻らない)。
+   * なければ PHP-FPM や php -S などの SAPI から呼ばれたものとして、スーパーグローバルのリクエストを 1 件処理する
+   *
+   * @throws LogicException サーバを登録せずに CLI から呼んだ (SAPI のリクエストがない)
+   */
+  public function run(): void
+  {
+    ($this->server ?? self::defaultServer())->run($this);
+  }
+
+  private static function defaultServer(): Runner
+  {
+    // CLI ではスーパーグローバルにリクエストがなく、応答も標準出力に書かれるだけなので、黙って動かさない
+    if (php_sapi_name() === 'cli') {
+      throw new LogicException(
+        "No server is registered: call useServer() with urassh/phalcon-http's HttpServer, or run under PHP-FPM or php -S",
+      );
+    }
+
+    return new SapiRunner();
   }
 }

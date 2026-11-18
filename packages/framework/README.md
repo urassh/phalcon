@@ -12,7 +12,7 @@
 composer require urassh/phalcon-framework urassh/phalcon-http
 ```
 
-`urassh/phalcon-http` は起動に使う HTTP サーバ。別の PSR-15 対応サーバで動かすなら不要。
+`urassh/phalcon-http` は常駐して起動するときの HTTP サーバ。PHP-FPM などの上で動かす ([起動](#起動)) か、別の PSR-15 対応サーバで動かすなら不要。
 
 ## 使い方
 
@@ -39,7 +39,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app);
+$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run();
 ```
 
 ```sh
@@ -102,11 +102,11 @@ $pdo = new PDO(
 
 $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']));
 
-(new HttpServer(new PhalconServerTransport(
+$app->useServer(new HttpServer(new PhalconServerTransport(
   host: $app->config('server.host') ?? '0.0.0.0',
   port: $app->config('server.port') ?? 8080,
   workers: $app->config('server.workers') ?? 1,
-)))->serve($app);
+)))->run();
 ```
 
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
@@ -143,6 +143,8 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `onError(callable $handler): self` | エラーレスポンスの形式を決めるフックを登録する ([エラーの形式を変える](#エラーの形式を変える)) |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
 | `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。[CSRF 対策](#csrf-対策)、[フォーム](#フォームとメソッドの上書き)の処理、ミドルウェアを通してからルーティングする |
+| `useServer(Runner $server): self` | `run()` で使うサーバを登録する。urassh/phalcon-http の `HttpServer` など、phalcon-core の `Runner` を実装したものを渡す |
+| `run(): void` | アプリを動かす ([起動](#起動)) |
 
 ルート登録メソッドは `$this` を返すので、チェーンして書ける。
 
@@ -150,6 +152,26 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 $app
   ->get('/', $index)
   ->post('/users', $createUser);
+```
+
+#### 起動
+
+`run()` は、`useServer()` でサーバを登録したかどうかで動きが変わる。
+
+| 登録 | 動き |
+|---|---|
+| `useServer(new HttpServer(...))` | HTTP サーバとして常駐する。プロセスが終了するまで戻らない |
+| なし | PHP-FPM や `php -S` などの SAPI から呼ばれたものとして、スーパーグローバルのリクエストを 1 件処理して戻る (phalcon-core の `SapiRunner`) |
+
+登録せずに CLI (`php app.php`) で `run()` すると、処理するリクエストがないので `LogicException` になる。
+
+```php
+// 常駐 (php app.php)
+$app->useServer(new HttpServer());
+$app->run();
+
+// PHP-FPM (public/index.php)
+$app->run();
 ```
 
 #### ミドルウェア
@@ -547,12 +569,12 @@ $app->post('/users', function (Request $req) use ($pdo) {
   return Response::created("/users/{$id}", ['id' => (int) $id]);
 });
 
-(new HttpServer())->serve($app);
+$app->useServer(new HttpServer())->run();
 ```
 
 ### 常駐プロセスでの注意
 
-PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せずにリクエストを処理し続ける (FPM の上で動かす方法はルートの README の「PHP-FPM で動かす」を参照)。
+PHP-FPM と違い、`HttpServer` で `run()` したプロセスは終了せずにリクエストを処理し続ける (FPM の上で動かす方法はルートの README の「PHP-FPM で動かす」を参照)。
 
 - PDO の接続は起動時に 1 度だけ作り、全リクエストで使い回す。DB 側がアイドル状態の接続を切ることがあるので、長時間動かす場合は再接続を考慮する
 - static 変数やグローバル変数に入れた値は次のリクエストにも残る。リクエストごとの状態はハンドラ内のローカル変数に閉じる
@@ -562,7 +584,7 @@ PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せ�
 ## 0.1 からの移行
 
 - `App` を `Phalcon` に改名した。`use Urassh\Phalcon\App;` を `use Urassh\Phalcon\Phalcon;` に書き換える
-- `HttpServer` の `host` / `port` / `workers` はサーバ層の `PhalconServerTransport` に渡す。`(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app)`。`urassh/phalcon-server` も `composer require` する
+- `HttpServer` の `host` / `port` / `workers` はサーバ層の `PhalconServerTransport` に渡す。`$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run()`。`urassh/phalcon-server` も `composer require` する
 - `Renderer` に `exists(string $name): bool` が増えた。独自の `Renderer` を実装している場合は追加する
 - パッケージ名を `urassh/phalcon` から `urassh/phalcon-framework` に変えた。名前空間 (`Urassh\Phalcon\`) は変わらない
 - `App::serve()` を削除した。`urassh/phalcon-http` の `HttpServer` に `App` を渡して起動する

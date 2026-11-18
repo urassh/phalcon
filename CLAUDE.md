@@ -37,7 +37,7 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 | パッケージ | 名前空間 | 役割 |
 |---|---|---|
 | `packages/server` (phalcon-server) | `Urassh\Phalcon\Server\` | プロトコル非依存のイベントループとソケットのプラットフォーム。外部依存なし |
-| `packages/core` (phalcon-core) | `Urassh\Phalcon\Core\` | 自作の PSR-7 / PSR-17 実装。PHP-FPM などの SAPI 向けの `ServerRequest::fromGlobals()` と `SapiEmitter` も持つ |
+| `packages/core` (phalcon-core) | `Urassh\Phalcon\Core\` | 自作の PSR-7 / PSR-17 実装。PSR-15 のハンドラを動かす `Runner` インターフェースと、SAPI 向けの `SapiRunner` / `ServerRequest::fromGlobals()` / `SapiEmitter` も持つ |
 | `packages/http` (phalcon-http) | `Urassh\Phalcon\Http\` | 任意の PSR-15 ハンドラを動かす HTTP/1.1 サーバ。core に依存し、server は suggest (既定のサーバ層) |
 | `packages/framework` (phalcon-framework) | `Urassh\Phalcon\` | ルーティング、テンプレート、YAML 設定。`Phalcon` が PSR-15 ハンドラ。core に依存 |
 
@@ -58,7 +58,7 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 4. `Http\HttpProtocol` が `RequestParser` で core の `ServerRequest` を作って PSR-15 ハンドラに渡し、`ResponseSerializer` でバイト列に戻す。パース失敗は 400、ハンドラの例外は 500 にここで変換する
 5. framework の `Phalcon::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
 
-PHP-FPM などの SAPI で動かすときは 1〜4 を通らず、`ServerRequest::fromGlobals()` → `Phalcon::handle()` → `SapiEmitter::emit()` で 1 リクエストを処理して終わる (ルート README の「PHP-FPM で動かす」)。サーバ層の `Transport` とは別の経路で、`HttpServer::serve()` (`never`) と 1 リクエストで戻る SAPI では形が違うので、共通のインターフェースは置いていない
+framework の `Phalcon::run()` は `useServer()` で登録した `Core\Runner` に `$this` を渡す。`Runner` は framework と http の両方が依存できる core に置き、`HttpServer` (`run(): never`、上の 1〜4) と `SapiRunner` が実装する。登録がなければ `SapiRunner` を使い、`ServerRequest::fromGlobals()` → `Phalcon::handle()` → `SapiEmitter::emit()` で 1 リクエストを処理して終わる (ルート README の「PHP-FPM で動かす」)。CLI で登録なしに `run()` すると `LogicException`
 
 `entrypoint.php` は `Phalcon` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 に加え、`workers: 2` で `/slow` の間も `GET /` が返ること、master を止めるとワーカも止まることを確かめているので、ルーティングやエラー応答、起動の仕方を変えたら `scripts/smoke.sh` も合わせる。
 
