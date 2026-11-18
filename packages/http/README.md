@@ -33,7 +33,7 @@ $handler = new class () implements RequestHandlerInterface {
 (new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run($handler);
 ```
 
-[urassh/phalcon-framework](../framework) の `Phalcon` では、`$app->useServer(new HttpServer())` で登録して `$app->run()` で起動する。
+[urassh/phalcon-framework](../framework) の `Phalcon` では、phalcon-http をインストールしてあれば CLI から `$app->run()` するだけで `new HttpServer()` で起動する。phalcon-http は Composer の `autoload.files` で、`HttpServer` を phalcon-core の `DefaultRunner` に登録している。設定を変えるときは `$app->useServer(new HttpServer(...))` で渡す。
 
 待ち受け先とワーカ数はサーバ層 (`Transport`) の設定で、`HttpServer` は持たない。`HttpServer` を引数なしで作ると `new PhalconServerTransport()` (0.0.0.0:8080、ワーカ 1) を使う。
 

@@ -24,8 +24,6 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use Urassh\Phalcon\Phalcon;
-use Urassh\Phalcon\Http\HttpServer;
-use Urassh\Phalcon\Http\PhalconServerTransport;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
@@ -39,7 +37,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run();
+$app->run(); // php app.php なら phalcon-http の HttpServer で 0.0.0.0:8080 を待ち受ける
 ```
 
 ```sh
@@ -156,23 +154,24 @@ $app
 
 #### 起動
 
-`run()` は、`useServer()` でサーバを登録したかどうかで動きが変わる。
+`run()` は次の順にサーバを選ぶ。
 
-| 登録 | 動き |
+| 条件 | 動き |
 |---|---|
-| `useServer(new HttpServer(...))` | HTTP サーバとして常駐する。プロセスが終了するまで戻らない |
-| なし | PHP-FPM や `php -S` などの SAPI から呼ばれたものとして、スーパーグローバルのリクエストを 1 件処理して戻る (phalcon-core の `SapiRunner`) |
-
-登録せずに CLI (`php app.php`) で `run()` すると、処理するリクエストがないので `LogicException` になる。
+| `useServer()` で登録した | そのサーバに任せる。`HttpServer` なら常駐し、プロセスが終了するまで戻らない |
+| PHP-FPM や `php -S` などの SAPI から呼ばれた | スーパーグローバルのリクエストを 1 件処理して戻る (phalcon-core の `SapiRunner`) |
+| CLI (`php app.php`) から呼ばれた | urassh/phalcon-http が入っていれば `new HttpServer()` (0.0.0.0:8080) で常駐する。入っていなければ `LogicException` |
 
 ```php
-// 常駐 (php app.php)
-$app->useServer(new HttpServer());
+// php app.php なら HttpServer で常駐し、PHP-FPM なら 1 リクエストを処理する
 $app->run();
 
-// PHP-FPM (public/index.php)
+// 待ち受け先やワーカ数を変える
+$app->useServer(new HttpServer(new PhalconServerTransport(host: '127.0.0.1', port: 9000, workers: 4)));
 $app->run();
 ```
+
+phalcon-framework は phalcon-http に依存しないので、phalcon-http は Composer の `autoload.files` で `HttpServer` を phalcon-core の `DefaultRunner` に登録し、`run()` はそこから見つける。
 
 #### ミドルウェア
 
@@ -569,7 +568,7 @@ $app->post('/users', function (Request $req) use ($pdo) {
   return Response::created("/users/{$id}", ['id' => (int) $id]);
 });
 
-$app->useServer(new HttpServer())->run();
+$app->run();
 ```
 
 ### 常駐プロセスでの注意

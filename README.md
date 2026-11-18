@@ -10,13 +10,11 @@ nginx や PHP-FPM を用意しなくても、`php app.php` でそのままアプ
 ```php
 $app = new Phalcon();
 
-$app->useServer(new HttpServer()); // 0.0.0.0:8080 で待ち受ける
-
 $app->get('/users/{id}', fn (Request $req) => Response::json([
   'id' => $req->param('id'),
 ]));
 
-$app->run();
+$app->run(); // php app.php なら 0.0.0.0:8080 で待ち受ける
 ```
 
 > C 拡張のフレームワーク [Phalcon](https://phalcon.io/) とは無関係のプロジェクト。
@@ -54,8 +52,6 @@ declare(strict_types=1);
 
 require __DIR__ . '/vendor/autoload.php';
 
-use Urassh\Phalcon\Http\HttpServer;
-use Urassh\Phalcon\Http\PhalconServerTransport;
 use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
@@ -70,10 +66,11 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)));
-
 $app->run();
 ```
+
+phalcon-http が入っていれば、CLI からの `run()` は `HttpServer` で 0.0.0.0:8080 を待ち受ける。
+待ち受け先やワーカ数を変えるときは `useServer()` でサーバを渡す ([設定ファイル](#設定ファイル)、[並行処理のモデル](#並行処理のモデル))。
 
 起動してリクエストを送る。
 
@@ -277,7 +274,7 @@ server {
 
 - 上の「並行処理のモデル」と「制限」は `HttpServer` の話。FPM ではプロセス数や keep-alive、リクエストの大きさは nginx と FPM の設定で決まる
 - `Phalcon` はリクエストごとに組み立て直される。static 変数などに入れた値は次のリクエストに残らない
-- `useServer()` を呼ばずに CLI (`php public/index.php`) で `run()` すると、処理するリクエストがないので `LogicException` になる
+- 同じ `run()` でも、CLI (`php public/index.php`) から呼ぶと phalcon-http の `HttpServer` で常駐する。phalcon-http を入れていなければ `LogicException`
 - アップロードされたファイル (`$_FILES`) はまだリクエストに入れない
 
 ## パッケージ
@@ -311,7 +308,7 @@ phalcon-http ─────────┘
 - framework の `App` を `Phalcon` に改名した (`Urassh\Phalcon\Phalcon`)
 - `HttpServer` の `host` / `port` / `workers` を `serve()` の引数から外し、サーバ層の `PhalconServerTransport` のコンストラクタに移した。`$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run()` のように書く。`Server` を渡していた場合は `new PhalconServerTransport(server: $server)` にする
 - `Port\Platform::listen()` に `bool $reusePort = false` を足した。`Platform` を自前で実装している場合はシグネチャを合わせる
-- `HttpServer::serve()` を `run()` に改名した (phalcon-core の `Runner` を実装する)。framework では `$app->useServer(new HttpServer())` で登録し、`$app->run()` で起動する
+- `HttpServer::serve()` を `run()` に改名した (phalcon-core の `Runner` を実装する)。framework では `$app->run()` で起動する (待ち受け先などを変えるときは `$app->useServer(new HttpServer(...))` で渡す)
 - phalcon-http が phalcon-server を require しなくなった。`HttpServer` を既定のまま使うなら `composer require urassh/phalcon-server` を足す (入っていないと `HttpServer` の生成時に `LogicException`)
 - `HttpProtocol` が phalcon-server の `Protocol` を実装しなくなった。`Server` に直接渡していた場合は `PhalconServerTransport` を使う
 

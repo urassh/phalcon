@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionMethod;
+use Urassh\Phalcon\Core\DefaultRunner;
 use Urassh\Phalcon\Core\Psr17Factory;
 use Urassh\Phalcon\Core\Runner;
 use Urassh\Phalcon\Core\SapiRunner;
@@ -29,8 +30,7 @@ use Urassh\Phalcon\Internal\View\PhpRenderer;
 /**
  * ルートを登録して PSR-15 のハンドラとして動く
  *
- * run() で起動する。useServer() で urassh/phalcon-http の HttpServer などを登録すると常駐し、
- * 登録しなければ PHP-FPM などの SAPI から呼ばれたものとして 1 リクエストを処理する
+ * run() で起動する。CLI からは HttpServer などで常駐し、PHP-FPM などの SAPI からは 1 リクエストを処理する
  */
 final class Phalcon implements RequestHandlerInterface
 {
@@ -300,10 +300,13 @@ final class Phalcon implements RequestHandlerInterface
   /**
    * アプリを動かす
    *
-   * useServer() で登録したサーバがあればそれに任せる (HttpServer なら常駐して戻らない)。
-   * なければ PHP-FPM や php -S などの SAPI から呼ばれたものとして、スーパーグローバルのリクエストを 1 件処理する
+   * 次の順にサーバを選ぶ。HttpServer で常駐した場合は戻らない
    *
-   * @throws LogicException サーバを登録せずに CLI から呼んだ (SAPI のリクエストがない)
+   * 1. useServer() で登録したサーバ
+   * 2. PHP-FPM や php -S などの SAPI から呼ばれたら、スーパーグローバルのリクエストを 1 件処理する (SapiRunner)
+   * 3. CLI から呼ばれたら、インストールされたパッケージが DefaultRunner に登録したサーバ (urassh/phalcon-http の HttpServer)
+   *
+   * @throws LogicException CLI から呼ばれ、サーバの登録も urassh/phalcon-http もない
    */
   public function run(): void
   {
@@ -312,13 +315,13 @@ final class Phalcon implements RequestHandlerInterface
 
   private static function defaultServer(): Runner
   {
-    // CLI ではスーパーグローバルにリクエストがなく、応答も標準出力に書かれるだけなので、黙って動かさない
-    if (php_sapi_name() === 'cli') {
-      throw new LogicException(
-        "No server is registered: call useServer() with urassh/phalcon-http's HttpServer, or run under PHP-FPM or php -S",
-      );
+    if (php_sapi_name() !== 'cli') {
+      return new SapiRunner();
     }
 
-    return new SapiRunner();
+    // CLI ではスーパーグローバルにリクエストがなく、応答も標準出力に書かれるだけなので、SapiRunner では黙って動かさない
+    return DefaultRunner::create() ?? throw new LogicException(
+      'No server is available: install urassh/phalcon-http, call useServer(), or run under PHP-FPM or php -S',
+    );
   }
 }

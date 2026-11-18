@@ -7,11 +7,12 @@ namespace Urassh\Phalcon\Tests;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Server\RequestHandlerInterface;
+use Urassh\Phalcon\Core\DefaultRunner;
 use Urassh\Phalcon\Core\Runner;
 use Urassh\Phalcon\Phalcon;
 
 /**
- * Phalcon::run() が登録したサーバに任せること、登録がなければ SAPI のリクエストを 1 件処理することを確かめる
+ * Phalcon::run() が登録したサーバに任せること、登録がなければ SAPI のリクエストを 1 件処理するか、CLI では DefaultRunner を使うことを確かめる
  */
 final class PhalconRunTest extends TestCase
 {
@@ -20,6 +21,8 @@ final class PhalconRunTest extends TestCase
 
   protected function tearDown(): void
   {
+    DefaultRunner::register(null);
+
     if ($this->process !== null) {
       proc_terminate($this->process);
       proc_close($this->process);
@@ -28,16 +31,22 @@ final class PhalconRunTest extends TestCase
 
   public function testRunsOnRegisteredServer(): void
   {
-    $server = new class () implements Runner {
-      public ?RequestHandlerInterface $handler = null;
-
-      public function run(RequestHandlerInterface $handler): void
-      {
-        $this->handler = $handler;
-      }
-    };
+    $server = self::recorder();
+    DefaultRunner::register(fn (): Runner => self::recorder());
 
     $app = (new Phalcon())->useServer($server);
+    $app->run();
+
+    // useServer() で登録したものが DefaultRunner より優先される
+    $this->assertSame($app, $server->handler);
+  }
+
+  public function testRunsOnDefaultRunnerFromCli(): void
+  {
+    $server = self::recorder();
+    DefaultRunner::register(fn (): Runner => $server);
+
+    $app = new Phalcon();
     $app->run();
 
     $this->assertSame($app, $server->handler);
@@ -45,8 +54,10 @@ final class PhalconRunTest extends TestCase
 
   public function testFailsOnCliWithoutServer(): void
   {
+    DefaultRunner::register(null);
+
     $this->expectException(LogicException::class);
-    $this->expectExceptionMessage('No server is registered');
+    $this->expectExceptionMessage('No server is available');
 
     (new Phalcon())->run();
   }
@@ -67,6 +78,21 @@ final class PhalconRunTest extends TestCase
         . "Content-Length: 11\r\nConnection: close\r\n\r\ntitle=hello",
       ),
     );
+  }
+
+  /**
+   * @return Runner&object{handler: RequestHandlerInterface|null}
+   */
+  private static function recorder(): Runner
+  {
+    return new class () implements Runner {
+      public ?RequestHandlerInterface $handler = null;
+
+      public function run(RequestHandlerInterface $handler): void
+      {
+        $this->handler = $handler;
+      }
+    };
   }
 
   /**
