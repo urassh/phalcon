@@ -52,6 +52,28 @@ final class PhalconRunTest extends TestCase
     $this->assertSame($app, $server->handler);
   }
 
+  public function testPassesServerConfigToDefaultRunner(): void
+  {
+    $received = [];
+    DefaultRunner::register(function (array $options) use (&$received): Runner {
+      $received[] = $options;
+
+      return self::recorder();
+    });
+
+    $path = sys_get_temp_dir() . '/phalcon-run-' . bin2hex(random_bytes(4)) . '.yaml';
+    file_put_contents($path, "server:\n  host: 127.0.0.1\n  port: 9000\n  workers: 2\n");
+    try {
+      Phalcon::fromConfig($path)->run();
+    } finally {
+      unlink($path);
+    }
+    // 設定ファイルがなければ何も渡さず、Runner の既定値に任せる
+    (new Phalcon())->run();
+
+    $this->assertSame([['host' => '127.0.0.1', 'port' => 9000, 'workers' => 2], []], $received);
+  }
+
   public function testFailsOnCliWithoutServer(): void
   {
     DefaultRunner::register(null);

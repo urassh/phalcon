@@ -184,12 +184,10 @@ $app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
 
 $dsn = $app->config('database.dsn');
 
-$app->useServer(new HttpServer(new PhalconServerTransport(
-  host: $app->config('server.host'),
-  port: $app->config('server.port'),
-  workers: $app->config('server.workers'),
-)))->run();
+$app->run(); // php app.php なら server の設定 (0.0.0.0:8080、ワーカ 4) で HttpServer が起動する
 ```
+
+`server` を書かなければ 0.0.0.0:8080、ワーカ 1 で起動する。`useServer()` でサーバを渡した場合は、そちらの設定が優先される。
 
 DB と組み合わせる例や、常駐プロセスで気をつけることも [phalcon-framework の README](packages/framework#db-と組み合わせる) にまとめてある。
 

@@ -100,16 +100,12 @@ $pdo = new PDO(
 
 $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']));
 
-$app->useServer(new HttpServer(new PhalconServerTransport(
-  host: $app->config('server.host') ?? '0.0.0.0',
-  port: $app->config('server.port') ?? 8080,
-  workers: $app->config('server.workers') ?? 1,
-)))->run();
+$app->run();
 ```
 
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
 - 値に `${NAME}` と書くと環境変数 `NAME` の値に置き換える。未定義の環境変数を参照するとエラーになる。パスワードなどはこの方法で YAML の外から渡す
-- `server.host` / `server.port` / `server.workers` は `Phalcon` が使うわけではなく、`$app->config()` で取り出してサーバに渡す。`Phalcon::fromConfig()` は型と範囲だけを検証する
+- `server.host` / `server.port` / `server.workers` は、CLI から `run()` したときに phalcon-http の `HttpServer` に渡る ([起動](#起動))。書かなかったキーは既定値 (0.0.0.0、8080、ワーカ 1) になる。`useServer()` でサーバを渡した場合と、PHP-FPM などの SAPI から呼ばれた場合は使わない
 - ファイルが存在しない、YAML として不正、`server.port` や `server.workers` が整数でない、といった場合は `Phalcon::fromConfig()` が `ConfigException` を投げる
 
 | キー | 型 | デフォルト | 説明 |
@@ -160,18 +156,22 @@ $app
 |---|---|
 | `useServer()` で登録した | そのサーバに任せる。`HttpServer` なら常駐し、プロセスが終了するまで戻らない |
 | PHP-FPM や `php -S` などの SAPI から呼ばれた | スーパーグローバルのリクエストを 1 件処理して戻る (phalcon-core の `SapiRunner`) |
-| CLI (`php app.php`) から呼ばれた | urassh/phalcon-http が入っていれば `new HttpServer()` (0.0.0.0:8080) で常駐する。入っていなければ `LogicException` |
+| CLI (`php app.php`) から呼ばれた | urassh/phalcon-http が入っていれば `HttpServer` で常駐する。待ち受け先とワーカ数は [設定ファイル](#設定ファイル)の `server` (なければ 0.0.0.0:8080、ワーカ 1)。入っていなければ `LogicException` |
 
 ```php
 // php app.php なら HttpServer で常駐し、PHP-FPM なら 1 リクエストを処理する
 $app->run();
 
-// 待ち受け先やワーカ数を変える
+// 待ち受け先やワーカ数は phalcon.yaml の server で変える
+$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app->run();
+
+// 設定ファイルを使わずにサーバを組み立てて渡す
 $app->useServer(new HttpServer(new PhalconServerTransport(host: '127.0.0.1', port: 9000, workers: 4)));
 $app->run();
 ```
 
-phalcon-framework は phalcon-http に依存しないので、phalcon-http は Composer の `autoload.files` で `HttpServer` を phalcon-core の `DefaultRunner` に登録し、`run()` はそこから見つける。
+phalcon-framework は phalcon-http に依存しないので、phalcon-http は Composer の `autoload.files` で `HttpServer` を phalcon-core の `DefaultRunner` に登録し、`run()` はそこから見つける。設定ファイルの `server` は `DefaultRunner::create()` の引数として渡す。
 
 #### ミドルウェア
 

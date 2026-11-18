@@ -39,6 +39,22 @@ final class DefaultRunnerTest extends TestCase
     $this->assertSame(0, $calls);
   }
 
+  public function testPassesOptionsToFactory(): void
+  {
+    $received = null;
+    DefaultRunner::register(function (array $options) use (&$received): Runner {
+      $received = $options;
+
+      return self::runner();
+    });
+
+    DefaultRunner::create(['host' => '127.0.0.1', 'port' => 9000]);
+    $this->assertSame(['host' => '127.0.0.1', 'port' => 9000], $received);
+
+    DefaultRunner::create();
+    $this->assertSame([], $received);
+  }
+
   private static function runner(): Runner
   {
     return new class () implements Runner {

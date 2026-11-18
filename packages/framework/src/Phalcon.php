@@ -304,23 +304,39 @@ final class Phalcon implements RequestHandlerInterface
    *
    * 1. useServer() で登録したサーバ
    * 2. PHP-FPM や php -S などの SAPI から呼ばれたら、スーパーグローバルのリクエストを 1 件処理する (SapiRunner)
-   * 3. CLI から呼ばれたら、インストールされたパッケージが DefaultRunner に登録したサーバ (urassh/phalcon-http の HttpServer)
+   * 3. CLI から呼ばれたら、インストールされたパッケージが DefaultRunner に登録したサーバ (urassh/phalcon-http の HttpServer)。
+   *    設定ファイルの server.host / server.port / server.workers を渡す
    *
    * @throws LogicException CLI から呼ばれ、サーバの登録も urassh/phalcon-http もない
    */
   public function run(): void
   {
-    ($this->server ?? self::defaultServer())->run($this);
+    ($this->server ?? $this->defaultServer())->run($this);
   }
 
-  private static function defaultServer(): Runner
+  private function defaultServer(): Runner
   {
     if (php_sapi_name() !== 'cli') {
       return new SapiRunner();
     }
 
+    // 設定ファイルにないキーは渡さず、Runner の既定値に任せる
+    $options = [];
+    $host = $this->config->host();
+    if ($host !== null) {
+      $options['host'] = $host;
+    }
+    $port = $this->config->port();
+    if ($port !== null) {
+      $options['port'] = $port;
+    }
+    $workers = $this->config->workers();
+    if ($workers !== null) {
+      $options['workers'] = $workers;
+    }
+
     // CLI ではスーパーグローバルにリクエストがなく、応答も標準出力に書かれるだけなので、SapiRunner では黙って動かさない
-    return DefaultRunner::create() ?? throw new LogicException(
+    return DefaultRunner::create($options) ?? throw new LogicException(
       'No server is available: install urassh/phalcon-http, call useServer(), or run under PHP-FPM or php -S',
     );
   }

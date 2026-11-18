@@ -25,7 +25,7 @@ composer require urassh/phalcon-core
 | `SapiEmitter` | なし。`emit(ResponseInterface): void` で応答を `header()` と `echo` で書き出す |
 | `Runner` | なし (自前のインターフェース)。`run(RequestHandlerInterface): void` で PSR-15 のハンドラを動かすもの。urassh/phalcon-http の `HttpServer` も実装する |
 | `SapiRunner` | `Runner`。`fromGlobals()` → ハンドラ → `SapiEmitter` で 1 リクエストを処理する |
-| `DefaultRunner` | なし。CLI から起動するときに使う `Runner` を、インストールされたパッケージが `register(Closure(): Runner)` で登録し、`create(): ?Runner` で作る。urassh/phalcon-http が `HttpServer` を登録する |
+| `DefaultRunner` | なし。CLI から起動するときに使う `Runner` を、インストールされたパッケージが `register(Closure(array): Runner)` で登録し、`create(array{host?: string, port?: int, workers?: int} $options = []): ?Runner` で作る。urassh/phalcon-http が `HttpServer` を登録し、phalcon-framework は設定ファイルの `server` を `$options` に渡す |
 
 ```php
 use Urassh\Phalcon\Core\Response;
