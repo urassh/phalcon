@@ -103,8 +103,10 @@ final class Router
    * 4. メッセージのテキスト
    *
    * 例外のヘッダ (405 の Allow など) は、レスポンスに同名のヘッダがなければ付ける
+   *
+   * ミドルウェアが投げた HttpException も RouterHandler::error() からここに渡される
    */
-  private function error(HttpException $e, Request $request): Response
+  public function error(HttpException $e, Request $request): Response
   {
     $response = $this->customError($e, $request)
       ?? (self::wantsJson($request) ? Response::json(['error' => $e->getMessage()], $e->status()) : null)

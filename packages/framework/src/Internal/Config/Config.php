@@ -84,7 +84,7 @@ final class Config
   }
 
   /**
-   * server / view の値を検証し、相対パスを解決する
+   * server / view / csrf の値を検証し、相対パスを解決する
    *
    * @param array<mixed> $values
    *
@@ -94,6 +94,16 @@ final class Config
   {
     $server = self::section($values, 'server');
     $view = self::section($values, 'view');
+    $csrf = self::section($values, 'csrf');
+
+    $origins = $csrf['trusted_origins'] ?? null;
+    if ($origins !== null) {
+      if (!is_array($origins) || !array_is_list($origins)) {
+        throw new ConfigException('csrf.trusted_origins must be a list of origins');
+      }
+      $csrf['trusted_origins'] = array_map(self::origin(...), $origins);
+      $values['csrf'] = $csrf;
+    }
 
     $host = $server['host'] ?? null;
     if ($host !== null && !is_string($host)) {
@@ -137,6 +147,27 @@ final class Config
     }
 
     return $values;
+  }
+
+  /**
+   * `https://app.example.com` や `http://localhost:3000` の形のオリジンを検証し、Origin ヘッダと比べられるよう小文字にする
+   *
+   * ブラウザは Origin ヘッダに末尾のスラッシュやパスを付けないので、付いていたら書き間違いとして弾く。
+   * 完全一致で比べるので `*` のようなワイルドカードも弾く
+   */
+  private static function origin(mixed $origin): string
+  {
+    $parts = is_string($origin) ? parse_url($origin) : false;
+    if ($parts === false
+      || !in_array(strtolower($parts['scheme'] ?? ''), ['http', 'https'], true)
+      || preg_match('/\A(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])\z/', $parts['host'] ?? '') !== 1
+      || array_diff(array_keys($parts), ['scheme', 'host', 'port']) !== []) {
+      $value = is_string($origin) ? "'{$origin}'" : get_debug_type($origin);
+
+      throw new ConfigException("csrf.trusted_origins must contain origins like 'https://example.com', got {$value}");
+    }
+
+    return strtolower((string) $origin);
   }
 
   /**
@@ -196,5 +227,15 @@ final class Config
     $directory = $this->get('view.directory');
 
     return is_string($directory) ? $directory : null;
+  }
+
+  /**
+   * @return list<string> 小文字にしたオリジン。設定がなければ空
+   */
+  public function trustedOrigins(): array
+  {
+    $origins = $this->get('csrf.trusted_origins');
+
+    return is_array($origins) ? array_values(array_filter($origins, is_string(...))) : [];
   }
 }

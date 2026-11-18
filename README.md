@@ -151,6 +151,8 @@ $app->add(new class () implements MiddlewareInterface {
 });
 ```
 
+CSRF 対策は組み込みで常に有効。別のサイトのページから送られた POST / PUT / PATCH / DELETE は、ブラウザが付ける `Sec-Fetch-Site` ヘッダを見て `403` にする。トークンをフォームに埋め込む必要はない。詳しくは [framework の README](packages/framework/README.md#csrf-対策) を参照。
+
 ### 設定ファイル
 
 ポートやテンプレートのディレクトリ、DB の接続情報などは YAML にまとめて書ける。`${NAME}` は環境変数に置き換わる。
