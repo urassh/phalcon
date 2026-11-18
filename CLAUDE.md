@@ -68,7 +68,7 @@ framework の `Phalcon::run()` は `useServer()` で登録した `Core\Runner` �
 
 - ユーザ向け API は `Phalcon`、`Request`、`Response`、`Renderer`、`functions.php` (`autoload.files`)。ハンドラは `callable(Request): Response` で、PSR-7 は直接見せない
 - `Internal\` 名前空間 (Routing / Middleware / Config / View / Http) と `@internal` メソッドは非公開扱い。server / http パッケージでは `Internal` 名前空間を使わず、公開範囲はクラスの粒度で絞る方針 (経緯は `docs/issue-3-plan.md`)
-- `Response::view()` は未描画のテンプレートを保持し、`Renderer` (既定は `Internal\View\PhpRenderer`) で描画される。`Phalcon::fromConfig()` が YAML の view ディレクトリから renderer を設定する
+- `Response::view()` は未描画のテンプレートを保持し、`Renderer` (既定は `Internal\View\PhpRenderer`) で描画される。`Phalcon` のコンストラクタが YAML の view ディレクトリから renderer を設定する。YAML は `new Phalcon()` ならプロジェクトのルート (Composer のルートパッケージ、`Internal\Config\Config::discover()`) の `phalcon.yaml`、`fromConfig($path)` ならそのパスだけを読む
 
 ### テスト
 

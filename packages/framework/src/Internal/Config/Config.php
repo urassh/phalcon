@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Urassh\Phalcon\Internal\Config;
 
+use Composer\InstalledVersions;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 use Urassh\Phalcon\Exception\ConfigException;
@@ -14,6 +15,9 @@ use Urassh\Phalcon\Exception\ConfigException;
 final class Config
 {
   private const ENV_PATTERN = '/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/';
+
+  /** new Phalcon() がプロジェクトのルートで探すファイル名 */
+  public const FILENAME = 'phalcon.yaml';
 
   /**
    * @param array<mixed> $values
@@ -26,6 +30,40 @@ final class Config
   public static function empty(): self
   {
     return new self([]);
+  }
+
+  /**
+   * プロジェクトのルートにある phalcon.yaml のパスを返す。なければ null
+   *
+   * @param string|null $root 省略すると projectRoot()
+   */
+  public static function discover(?string $root = null): ?string
+  {
+    $root ??= self::projectRoot();
+    if ($root === null) {
+      return null;
+    }
+
+    $path = $root . DIRECTORY_SEPARATOR . self::FILENAME;
+
+    return is_file($path) ? $path : null;
+  }
+
+  /**
+   * Composer のルートパッケージのディレクトリ
+   *
+   * カレントディレクトリやエントリポイントの場所と違い、php app.php でも PHP-FPM の public/index.php でも同じ場所になる。
+   * Composer のオートローダを使っていなければ null
+   */
+  public static function projectRoot(): ?string
+  {
+    if (!class_exists(InstalledVersions::class)) {
+      return null;
+    }
+
+    $root = realpath(InstalledVersions::getRootPackage()['install_path']);
+
+    return $root === false ? null : $root;
   }
 
   /**

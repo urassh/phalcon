@@ -163,6 +163,7 @@ HTML のフォームから PUT / PATCH / DELETE のルートを呼ぶときは�
 ### 設定ファイル
 
 ポートやテンプレートのディレクトリ、DB の接続情報などは YAML にまとめて書ける。`${NAME}` は環境変数に置き換わる。
+プロジェクトのルート (`composer.json` のあるディレクトリ) に `phalcon.yaml` を置くと、`new Phalcon()` が読み込む。
 
 ```yaml
 # phalcon.yaml
@@ -180,7 +181,7 @@ database:
 ```
 
 ```php
-$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = new Phalcon(); // プロジェクトのルートの phalcon.yaml を読み込む
 
 $dsn = $app->config('database.dsn');
 
@@ -188,6 +189,12 @@ $app->run(); // php app.php なら server の設定 (0.0.0.0:8080、ワーカ 4)
 ```
 
 `server` を書かなければ 0.0.0.0:8080、ワーカ 1 で起動する。`useServer()` でサーバを渡した場合は、そちらの設定が優先される。
+
+別の場所や別の名前の設定ファイルを使うときは、`Phalcon::fromConfig()` にパスを渡す。このときプロジェクトのルートの `phalcon.yaml` は読まない。
+
+```php
+$app = Phalcon::fromConfig(__DIR__ . '/config/production.yaml');
+```
 
 DB と組み合わせる例や、常駐プロセスで気をつけることも [phalcon-framework の README](packages/framework#db-と組み合わせる) にまとめてある。
 
@@ -308,6 +315,7 @@ phalcon-http ─────────┘
 - `Port\Platform::listen()` に `bool $reusePort = false` を足した。`Platform` を自前で実装している場合はシグネチャを合わせる
 - `HttpServer::serve()` を `run()` に改名した (phalcon-core の `Runner` を実装する)。framework では `$app->run()` で起動する (待ち受け先などを変えるときは `$app->useServer(new HttpServer(...))` で渡す)
 - phalcon-http が phalcon-server を require しなくなった。`HttpServer` を既定のまま使うなら `composer require urassh/phalcon-server` を足す (入っていないと `HttpServer` の生成時に `LogicException`)
+- `new Phalcon()` が、プロジェクトのルート (Composer のルートパッケージのディレクトリ) に `phalcon.yaml` があれば読み込むようになった。読ませたくなければ `phalcon.yaml` を別の名前にして `Phalcon::fromConfig()` で読む
 - `HttpProtocol` が phalcon-server の `Protocol` を実装しなくなった。`Server` に直接渡していた場合は `PhalconServerTransport` を使う
 
 ### 0.1 からの破壊的変更

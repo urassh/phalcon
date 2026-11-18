@@ -66,7 +66,7 @@ $ curl http://localhost:8080/users/42
 
 ## 設定ファイル
 
-ホスト名やポート、テンプレートのディレクトリは YAML ファイルにまとめて書ける。
+ホスト名やポート、テンプレートのディレクトリは YAML ファイルにまとめて書ける。プロジェクトのルートに `phalcon.yaml` として置くと、`new Phalcon()` が読み込む。
 
 ```yaml
 # phalcon.yaml
@@ -90,7 +90,7 @@ database:
 ```
 
 ```php
-$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = new Phalcon(); // プロジェクトのルートの phalcon.yaml を読み込む
 
 $pdo = new PDO(
   $app->config('database.dsn'),
@@ -103,10 +103,12 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 $app->run();
 ```
 
+- `new Phalcon()` は、プロジェクトのルート (Composer のルートパッケージのディレクトリ。ふつうは `composer.json` のある場所) に `phalcon.yaml` があれば読み込む。カレントディレクトリやエントリポイントの場所ではないので、`php app.php` でも PHP-FPM の `public/index.php` でも同じファイルを読む
+- 別の場所や別の名前のファイルは `Phalcon::fromConfig($path)` で読む。このときプロジェクトのルートの `phalcon.yaml` は読まない
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
 - 値に `${NAME}` と書くと環境変数 `NAME` の値に置き換える。未定義の環境変数を参照するとエラーになる。パスワードなどはこの方法で YAML の外から渡す
 - `server.host` / `server.port` / `server.workers` は、CLI から `run()` したときに phalcon-http の `HttpServer` に渡る ([起動](#起動))。書かなかったキーは既定値 (0.0.0.0、8080、ワーカ 1) になる。`useServer()` でサーバを渡した場合と、PHP-FPM などの SAPI から呼ばれた場合は使わない
-- ファイルが存在しない、YAML として不正、`server.port` や `server.workers` が整数でない、といった場合は `Phalcon::fromConfig()` が `ConfigException` を投げる
+- YAML として不正、`server.port` や `server.workers` が整数でない、`fromConfig()` に渡したファイルが存在しない、といった場合は `ConfigException` を投げる
 
 | キー | 型 | デフォルト | 説明 |
 |---|---|---|---|
@@ -122,8 +124,8 @@ $app->run();
 
 | メソッド | 説明 |
 |---|---|
-| `new Phalcon()` | 設定ファイルを使わずに `Phalcon` を作る |
-| `Phalcon::fromConfig(string $path): self` | YAML の設定ファイルを読み込んで `Phalcon` を作る |
+| `new Phalcon()` | `Phalcon` を作る。プロジェクトのルートに `phalcon.yaml` があれば読み込む ([設定ファイル](#設定ファイル)) |
+| `Phalcon::fromConfig(string $path): self` | パスを指定して YAML の設定ファイルを読み込み、`Phalcon` を作る。プロジェクトのルートの `phalcon.yaml` は読まない |
 | `get(string $path, callable $handler): self` | GET のルートを登録する |
 | `post(string $path, callable $handler): self` | POST のルートを登録する |
 | `put(string $path, callable $handler): self` | PUT のルートを登録する |
@@ -163,7 +165,7 @@ $app
 $app->run();
 
 // 待ち受け先やワーカ数は phalcon.yaml の server で変える
-$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = new Phalcon();
 $app->run();
 
 // 設定ファイルを使わずにサーバを組み立てて渡す
@@ -548,7 +550,7 @@ final class ShowUser
   }
 }
 
-$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = new Phalcon();
 
 $pdo = new PDO(
   $app->config('database.dsn'),

@@ -51,40 +51,45 @@ final class Phalcon implements RequestHandlerInterface
 
   private readonly Router $router;
 
-  private Config $config;
+  private readonly Config $config;
 
   /** @var list<MiddlewareInterface> */
   private array $middleware = [];
 
   /** 外せないよう add() のミドルウェアとは分けて持ち、常に最も外側で動かす */
-  private CrossOriginProtection $crossOrigin;
+  private readonly CrossOriginProtection $crossOrigin;
 
   private ?Runner $server = null;
 
-  public function __construct()
+  /**
+   * @param string|null $configPath 読み込む YAML の設定ファイル。省略すると、プロジェクトのルート
+   *                                (Composer のルートパッケージのディレクトリ) に phalcon.yaml があれば読み込む
+   * @throws ConfigException 設定ファイルが存在しない (パスを渡した場合)、YAML として不正、値の型が不正な場合
+   */
+  public function __construct(?string $configPath = null)
   {
     $this->router = new Router();
-    $this->config = Config::empty();
-    $this->crossOrigin = new CrossOriginProtection();
+
+    $configPath ??= Config::discover();
+    $this->config = $configPath === null ? Config::empty() : Config::load($configPath);
+    $this->crossOrigin = new CrossOriginProtection($this->config->trustedOrigins());
+
+    $directory = $this->config->viewDirectory();
+    if ($directory !== null) {
+      $this->useRenderer(new PhpRenderer($directory));
+    }
   }
 
   /**
-   * YAML の設定ファイルを読み込んで Phalcon を作る
+   * パスを指定して YAML の設定ファイルを読み込み、Phalcon を作る
+   *
+   * phalcon.yaml をプロジェクトのルート以外に置いたときや、別の名前にしたときに使う。プロジェクトのルートの phalcon.yaml は読まない
    *
    * @throws ConfigException ファイルが存在しない、YAML として不正、値の型が不正な場合
    */
   public static function fromConfig(string $path): self
   {
-    $app = new self();
-    $app->config = Config::load($path);
-    $app->crossOrigin = new CrossOriginProtection($app->config->trustedOrigins());
-
-    $directory = $app->config->viewDirectory();
-    if ($directory !== null) {
-      $app->useRenderer(new PhpRenderer($directory));
-    }
-
-    return $app;
+    return new self($path);
   }
 
   /**
