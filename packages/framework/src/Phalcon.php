@@ -6,12 +6,16 @@ namespace Urassh\Phalcon;
 
 use Closure;
 use InvalidArgumentException;
+use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use ReflectionMethod;
+use Urassh\Phalcon\Core\DefaultRunner;
 use Urassh\Phalcon\Core\Psr17Factory;
+use Urassh\Phalcon\Core\Runner;
+use Urassh\Phalcon\Core\SapiRunner;
 use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Exception\HttpException;
 use Urassh\Phalcon\Internal\Config\Config;
@@ -24,7 +28,9 @@ use Urassh\Phalcon\Internal\Routing\RouterHandler;
 use Urassh\Phalcon\Internal\View\PhpRenderer;
 
 /**
- * ルートを登録して PSR-15 のハンドラとして動く。起動は urassh/phalcon-http の HttpServer などに任せる
+ * ルートを登録して PSR-15 のハンドラとして動く
+ *
+ * run() で起動する。CLI からは HttpServer などで常駐し、PHP-FPM などの SAPI からは 1 リクエストを処理する
  */
 final class Phalcon implements RequestHandlerInterface
 {
@@ -45,38 +51,45 @@ final class Phalcon implements RequestHandlerInterface
 
   private readonly Router $router;
 
-  private Config $config;
+  private readonly Config $config;
 
   /** @var list<MiddlewareInterface> */
   private array $middleware = [];
 
   /** 外せないよう add() のミドルウェアとは分けて持ち、常に最も外側で動かす */
-  private CrossOriginProtection $crossOrigin;
+  private readonly CrossOriginProtection $crossOrigin;
 
-  public function __construct()
+  private ?Runner $server = null;
+
+  /**
+   * @param string|null $configPath 読み込む YAML の設定ファイル。省略すると、プロジェクトのルート
+   *                                (Composer のルートパッケージのディレクトリ) に phalcon.yaml があれば読み込む
+   * @throws ConfigException 設定ファイルが存在しない (パスを渡した場合)、YAML として不正、値の型が不正な場合
+   */
+  public function __construct(?string $configPath = null)
   {
     $this->router = new Router();
-    $this->config = Config::empty();
-    $this->crossOrigin = new CrossOriginProtection();
+
+    $configPath ??= Config::discover();
+    $this->config = $configPath === null ? Config::empty() : Config::load($configPath);
+    $this->crossOrigin = new CrossOriginProtection($this->config->trustedOrigins());
+
+    $directory = $this->config->viewDirectory();
+    if ($directory !== null) {
+      $this->useRenderer(new PhpRenderer($directory));
+    }
   }
 
   /**
-   * YAML の設定ファイルを読み込んで Phalcon を作る
+   * パスを指定して YAML の設定ファイルを読み込み、Phalcon を作る
+   *
+   * phalcon.yaml をプロジェクトのルート以外に置いたときや、別の名前にしたときに使う。プロジェクトのルートの phalcon.yaml は読まない
    *
    * @throws ConfigException ファイルが存在しない、YAML として不正、値の型が不正な場合
    */
   public static function fromConfig(string $path): self
   {
-    $app = new self();
-    $app->config = Config::load($path);
-    $app->crossOrigin = new CrossOriginProtection($app->config->trustedOrigins());
-
-    $directory = $app->config->viewDirectory();
-    if ($directory !== null) {
-      $app->useRenderer(new PhpRenderer($directory));
-    }
-
-    return $app;
+    return new self($path);
   }
 
   /**
@@ -93,6 +106,16 @@ final class Phalcon implements RequestHandlerInterface
   public function useRenderer(Renderer $renderer): self
   {
     $this->router->useRenderer($renderer);
+
+    return $this;
+  }
+
+  /**
+   * run() で使うサーバを登録する。urassh/phalcon-http の HttpServer など、phalcon-core の Runner を実装したものを渡す
+   */
+  public function useServer(Runner $server): self
+  {
+    $this->server = $server;
 
     return $this;
   }
@@ -277,5 +300,49 @@ final class Phalcon implements RequestHandlerInterface
     } catch (HttpException $e) {
       return $router->error($e, $request);
     }
+  }
+
+  /**
+   * アプリを動かす
+   *
+   * 次の順にサーバを選ぶ。HttpServer で常駐した場合は戻らない
+   *
+   * 1. useServer() で登録したサーバ
+   * 2. PHP-FPM や php -S などの SAPI から呼ばれたら、スーパーグローバルのリクエストを 1 件処理する (SapiRunner)
+   * 3. CLI から呼ばれたら、インストールされたパッケージが DefaultRunner に登録したサーバ (urassh/phalcon-http の HttpServer)。
+   *    設定ファイルの server.host / server.port / server.workers を渡す
+   *
+   * @throws LogicException CLI から呼ばれ、サーバの登録も urassh/phalcon-http もない
+   */
+  public function run(): void
+  {
+    ($this->server ?? $this->defaultServer())->run($this);
+  }
+
+  private function defaultServer(): Runner
+  {
+    if (php_sapi_name() !== 'cli') {
+      return new SapiRunner();
+    }
+
+    // 設定ファイルにないキーは渡さず、Runner の既定値に任せる
+    $options = [];
+    $host = $this->config->host();
+    if ($host !== null) {
+      $options['host'] = $host;
+    }
+    $port = $this->config->port();
+    if ($port !== null) {
+      $options['port'] = $port;
+    }
+    $workers = $this->config->workers();
+    if ($workers !== null) {
+      $options['workers'] = $workers;
+    }
+
+    // CLI ではスーパーグローバルにリクエストがなく、応答も標準出力に書かれるだけなので、SapiRunner では黙って動かさない
+    return DefaultRunner::create($options) ?? throw new LogicException(
+      'No server is available: install urassh/phalcon-http, call useServer(), or run under PHP-FPM or php -S',
+    );
   }
 }

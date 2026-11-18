@@ -45,7 +45,10 @@
     "autoload": {
         "psr-4": {
             "Urassh\\Phalcon\\Http\\": "src/"
-        }
+        },
+        "files": [
+            "src/register.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

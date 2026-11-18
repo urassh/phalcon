@@ -1,6 +1,6 @@
 # urassh/phalcon-core
 
-PSR-7 (`psr/http-message` 2.0) と PSR-17 (`psr/http-factory`) の最小限の実装。
+PSR-7 (`psr/http-message` 2.0) と PSR-17 (`psr/http-factory`) の最小限の実装と、PSR-15 のハンドラを動かす `Runner` のインターフェース。
 [urassh/phalcon-http](../http) と [urassh/phalcon-framework](../framework) が共通で使う。
 
 > このリポジトリは [urassh/phalcon](https://github.com/urassh/phalcon) モノレポから split した読み取り専用のコピー。Issue と PR はモノレポで受け付ける。
@@ -23,6 +23,9 @@ composer require urassh/phalcon-core
 | `UploadedFile` | `UploadedFileInterface` |
 | `Psr17Factory` | `ResponseFactoryInterface`, `ServerRequestFactoryInterface`, `StreamFactoryInterface`, `UriFactoryInterface` |
 | `SapiEmitter` | なし。`emit(ResponseInterface): void` で応答を `header()` と `echo` で書き出す |
+| `Runner` | なし (自前のインターフェース)。`run(RequestHandlerInterface): void` で PSR-15 のハンドラを動かすもの。urassh/phalcon-http の `HttpServer` も実装する |
+| `SapiRunner` | `Runner`。`fromGlobals()` → ハンドラ → `SapiEmitter` で 1 リクエストを処理する |
+| `DefaultRunner` | なし。CLI から起動するときに使う `Runner` を、インストールされたパッケージが `register(Closure(array): Runner)` で登録し、`create(array{host?: string, port?: int, workers?: int} $options = []): ?Runner` で作る。urassh/phalcon-http が `HttpServer` を登録し、phalcon-framework は設定ファイルの `server` を `$options` に渡す |
 
 ```php
 use Urassh\Phalcon\Core\Response;
@@ -34,7 +37,15 @@ $response = new Response(201, ['Location' => '/users/42'], '{"id":42}');
 
 ### PHP-FPM などの SAPI で使う
 
-`ServerRequest::fromGlobals()` でスーパーグローバルからリクエストを作り、`SapiEmitter` で応答を書き出す。間に任意の PSR-15 ハンドラを挟める。
+`SapiRunner` に任意の PSR-15 ハンドラを渡す。スーパーグローバルから `ServerRequest::fromGlobals()` でリクエストを作り、応答を `SapiEmitter` で書き出す。
+
+```php
+use Urassh\Phalcon\Core\SapiRunner;
+
+(new SapiRunner())->run($handler);
+```
+
+途中に処理を挟みたいときは、`fromGlobals()` と `SapiEmitter` を直接使う。
 
 ```php
 use Urassh\Phalcon\Core\SapiEmitter;

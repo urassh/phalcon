@@ -185,6 +185,21 @@ final class ConfigTest extends TestCase
     }
   }
 
+  public function testDiscoversConfigInRoot(): void
+  {
+    $this->assertNull(Config::discover($this->dir));
+
+    file_put_contents("{$this->dir}/phalcon.yaml", "server:\n  port: 9000\n");
+
+    $this->assertSame("{$this->dir}/phalcon.yaml", Config::discover($this->dir));
+  }
+
+  public function testProjectRootIsComposerRootPackage(): void
+  {
+    // このパッケージを単体で composer install したとき、ルートパッケージは phalcon-framework 自身
+    $this->assertSame(realpath(__DIR__ . '/../../..'), Config::projectRoot());
+  }
+
   private function load(string $yaml): Config
   {
     $path = "{$this->dir}/phalcon.yaml";

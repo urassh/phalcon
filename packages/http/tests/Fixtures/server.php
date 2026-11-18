@@ -20,4 +20,4 @@ $handler = new class () implements RequestHandlerInterface {
   }
 };
 
-(new HttpServer(new PhalconServerTransport('127.0.0.1', 0)))->serve($handler);
+(new HttpServer(new PhalconServerTransport('127.0.0.1', 0)))->run($handler);

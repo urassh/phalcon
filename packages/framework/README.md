@@ -12,7 +12,7 @@
 composer require urassh/phalcon-framework urassh/phalcon-http
 ```
 
-`urassh/phalcon-http` は起動に使う HTTP サーバ。別の PSR-15 対応サーバで動かすなら不要。
+`urassh/phalcon-http` は常駐して起動するときの HTTP サーバ。PHP-FPM などの上で動かす ([起動](#起動)) か、別の PSR-15 対応サーバで動かすなら不要。
 
 ## 使い方
 
@@ -24,8 +24,6 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use Urassh\Phalcon\Phalcon;
-use Urassh\Phalcon\Http\HttpServer;
-use Urassh\Phalcon\Http\PhalconServerTransport;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
 
@@ -39,7 +37,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app);
+$app->run(); // php app.php なら phalcon-http の HttpServer で 0.0.0.0:8080 を待ち受ける
 ```
 
 ```sh
@@ -68,7 +66,7 @@ $ curl http://localhost:8080/users/42
 
 ## 設定ファイル
 
-ホスト名やポート、テンプレートのディレクトリは YAML ファイルにまとめて書ける。
+ホスト名やポート、テンプレートのディレクトリは YAML ファイルにまとめて書ける。プロジェクトのルートに `phalcon.yaml` として置くと、`new Phalcon()` が読み込む。
 
 ```yaml
 # phalcon.yaml
@@ -92,7 +90,7 @@ database:
 ```
 
 ```php
-$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = new Phalcon(); // プロジェクトのルートの phalcon.yaml を読み込む
 
 $pdo = new PDO(
   $app->config('database.dsn'),
@@ -102,17 +100,15 @@ $pdo = new PDO(
 
 $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']));
 
-(new HttpServer(new PhalconServerTransport(
-  host: $app->config('server.host') ?? '0.0.0.0',
-  port: $app->config('server.port') ?? 8080,
-  workers: $app->config('server.workers') ?? 1,
-)))->serve($app);
+$app->run();
 ```
 
+- `new Phalcon()` は、プロジェクトのルート (Composer のルートパッケージのディレクトリ。ふつうは `composer.json` のある場所) に `phalcon.yaml` があれば読み込む。カレントディレクトリやエントリポイントの場所ではないので、`php app.php` でも PHP-FPM の `public/index.php` でも同じファイルを読む
+- 別の場所や別の名前のファイルは `Phalcon::fromConfig($path)` で読む。このときプロジェクトのルートの `phalcon.yaml` は読まない
 - `view.directory` などの相対パスは、YAML ファイルがあるディレクトリを基準に解決する
 - 値に `${NAME}` と書くと環境変数 `NAME` の値に置き換える。未定義の環境変数を参照するとエラーになる。パスワードなどはこの方法で YAML の外から渡す
-- `server.host` / `server.port` / `server.workers` は `Phalcon` が使うわけではなく、`$app->config()` で取り出してサーバに渡す。`Phalcon::fromConfig()` は型と範囲だけを検証する
-- ファイルが存在しない、YAML として不正、`server.port` や `server.workers` が整数でない、といった場合は `Phalcon::fromConfig()` が `ConfigException` を投げる
+- `server.host` / `server.port` / `server.workers` は、CLI から `run()` したときに phalcon-http の `HttpServer` に渡る ([起動](#起動))。書かなかったキーは既定値 (0.0.0.0、8080、ワーカ 1) になる。`useServer()` でサーバを渡した場合と、PHP-FPM などの SAPI から呼ばれた場合は使わない
+- YAML として不正、`server.port` や `server.workers` が整数でない、`fromConfig()` に渡したファイルが存在しない、といった場合は `ConfigException` を投げる
 
 | キー | 型 | デフォルト | 説明 |
 |---|---|---|---|
@@ -128,8 +124,8 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 
 | メソッド | 説明 |
 |---|---|
-| `new Phalcon()` | 設定ファイルを使わずに `Phalcon` を作る |
-| `Phalcon::fromConfig(string $path): self` | YAML の設定ファイルを読み込んで `Phalcon` を作る |
+| `new Phalcon()` | `Phalcon` を作る。プロジェクトのルートに `phalcon.yaml` があれば読み込む ([設定ファイル](#設定ファイル)) |
+| `Phalcon::fromConfig(string $path): self` | パスを指定して YAML の設定ファイルを読み込み、`Phalcon` を作る。プロジェクトのルートの `phalcon.yaml` は読まない |
 | `get(string $path, callable $handler): self` | GET のルートを登録する |
 | `post(string $path, callable $handler): self` | POST のルートを登録する |
 | `put(string $path, callable $handler): self` | PUT のルートを登録する |
@@ -143,6 +139,8 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `onError(callable $handler): self` | エラーレスポンスの形式を決めるフックを登録する ([エラーの形式を変える](#エラーの形式を変える)) |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
 | `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。[CSRF 対策](#csrf-対策)、[フォーム](#フォームとメソッドの上書き)の処理、ミドルウェアを通してからルーティングする |
+| `useServer(Runner $server): self` | `run()` で使うサーバを登録する。urassh/phalcon-http の `HttpServer` など、phalcon-core の `Runner` を実装したものを渡す |
+| `run(): void` | アプリを動かす ([起動](#起動)) |
 
 ルート登録メソッドは `$this` を返すので、チェーンして書ける。
 
@@ -151,6 +149,31 @@ $app
   ->get('/', $index)
   ->post('/users', $createUser);
 ```
+
+#### 起動
+
+`run()` は次の順にサーバを選ぶ。
+
+| 条件 | 動き |
+|---|---|
+| `useServer()` で登録した | そのサーバに任せる。`HttpServer` なら常駐し、プロセスが終了するまで戻らない |
+| PHP-FPM や `php -S` などの SAPI から呼ばれた | スーパーグローバルのリクエストを 1 件処理して戻る (phalcon-core の `SapiRunner`) |
+| CLI (`php app.php`) から呼ばれた | urassh/phalcon-http が入っていれば `HttpServer` で常駐する。待ち受け先とワーカ数は [設定ファイル](#設定ファイル)の `server` (なければ 0.0.0.0:8080、ワーカ 1)。入っていなければ `LogicException` |
+
+```php
+// php app.php なら HttpServer で常駐し、PHP-FPM なら 1 リクエストを処理する
+$app->run();
+
+// 待ち受け先やワーカ数は phalcon.yaml の server で変える
+$app = new Phalcon();
+$app->run();
+
+// 設定ファイルを使わずにサーバを組み立てて渡す
+$app->useServer(new HttpServer(new PhalconServerTransport(host: '127.0.0.1', port: 9000, workers: 4)));
+$app->run();
+```
+
+phalcon-framework は phalcon-http に依存しないので、phalcon-http は Composer の `autoload.files` で `HttpServer` を phalcon-core の `DefaultRunner` に登録し、`run()` はそこから見つける。設定ファイルの `server` は `DefaultRunner::create()` の引数として渡す。
 
 #### ミドルウェア
 
@@ -527,7 +550,7 @@ final class ShowUser
   }
 }
 
-$app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
+$app = new Phalcon();
 
 $pdo = new PDO(
   $app->config('database.dsn'),
@@ -547,12 +570,12 @@ $app->post('/users', function (Request $req) use ($pdo) {
   return Response::created("/users/{$id}", ['id' => (int) $id]);
 });
 
-(new HttpServer())->serve($app);
+$app->run();
 ```
 
 ### 常駐プロセスでの注意
 
-PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せずにリクエストを処理し続ける (FPM の上で動かす方法はルートの README の「PHP-FPM で動かす」を参照)。
+PHP-FPM と違い、`HttpServer` で `run()` したプロセスは終了せずにリクエストを処理し続ける (FPM の上で動かす方法はルートの README の「PHP-FPM で動かす」を参照)。
 
 - PDO の接続は起動時に 1 度だけ作り、全リクエストで使い回す。DB 側がアイドル状態の接続を切ることがあるので、長時間動かす場合は再接続を考慮する
 - static 変数やグローバル変数に入れた値は次のリクエストにも残る。リクエストごとの状態はハンドラ内のローカル変数に閉じる
@@ -562,7 +585,7 @@ PHP-FPM と違い、`HttpServer::serve()` を呼んだプロセスは終了せ�
 ## 0.1 からの移行
 
 - `App` を `Phalcon` に改名した。`use Urassh\Phalcon\App;` を `use Urassh\Phalcon\Phalcon;` に書き換える
-- `HttpServer` の `host` / `port` / `workers` はサーバ層の `PhalconServerTransport` に渡す。`(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app)`。`urassh/phalcon-server` も `composer require` する
+- `HttpServer` の `host` / `port` / `workers` はサーバ層の `PhalconServerTransport` に渡す。`$app->useServer(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->run()`。`urassh/phalcon-server` も `composer require` する
 - `Renderer` に `exists(string $name): bool` が増えた。独自の `Renderer` を実装している場合は追加する
 - パッケージ名を `urassh/phalcon` から `urassh/phalcon-framework` に変えた。名前空間 (`Urassh\Phalcon\`) は変わらない
 - `App::serve()` を削除した。`urassh/phalcon-http` の `HttpServer` に `App` を渡して起動する

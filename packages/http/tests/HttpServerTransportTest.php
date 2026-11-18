@@ -41,7 +41,7 @@ final class HttpServerTransportTest extends TestCase
     };
 
     try {
-      (new HttpServer($transport))->serve($handler);
+      (new HttpServer($transport))->run($handler);
     } catch (RuntimeException $e) {
       $this->assertSame('stopped', $e->getMessage());
     }

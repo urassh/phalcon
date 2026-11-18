@@ -7,7 +7,7 @@ namespace Urassh\Phalcon\Core\Tests;
 use PHPUnit\Framework\TestCase;
 
 /**
- * php -S (組み込みサーバの SAPI) の上で ServerRequest::fromGlobals() と SapiEmitter を動かし、実際の応答を確かめる
+ * php -S (組み込みサーバの SAPI) の上で SapiRunner (ServerRequest::fromGlobals() と SapiEmitter) を動かし、実際の応答を確かめる
  */
 final class SapiTest extends TestCase
 {
