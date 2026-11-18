@@ -566,6 +566,45 @@ final class PhalconTest extends TestCase
     $this->assertSame('{"code":403}', (string) $api->getBody());
   }
 
+  public function testHandlerReadsUrlencodedForm(): void
+  {
+    $app = (new Phalcon())
+      ->post('/memos', fn (Request $req) => Response::text("{$req->form('title')}|{$req->form('body')}"));
+
+    $response = $this->send($app, 'POST', '/memos', 'title=a+b&body=%E3%81%82', ['Content-Type' => 'application/x-www-form-urlencoded']);
+
+    $this->assertSame('a b|あ', (string) $response->getBody());
+  }
+
+  public function testMethodOverrideRoutesFormToResourceActions(): void
+  {
+    $app = (new Phalcon())
+      ->add($this->tagMiddleware('user'))
+      ->resources('/memos', $this->fullController());
+    $form = ['Content-Type' => 'application/x-www-form-urlencoded'];
+
+    $update = $this->send($app, 'POST', '/memos/1', '_method=PATCH&title=a', $form);
+    $this->assertSame('update', (string) $update->getBody());
+    // add() したミドルウェアにも上書き後のメソッドで届く
+    $this->assertSame('user', $update->getHeaderLine('X-Trace'));
+    $this->assertSame('destroy', (string) $this->send($app, 'POST', '/memos/1', '_method=DELETE', $form)->getBody());
+    $this->assertSame('create', (string) $this->send($app, 'POST', '/memos', '_method=GET', $form)->getBody());
+    // フォームでなければ `_method` は見ない
+    $this->assertSame(405, $this->send($app, 'POST', '/memos/1', '_method=DELETE')->getStatusCode());
+  }
+
+  public function testCrossOriginCheckRunsBeforeMethodOverride(): void
+  {
+    $app = (new Phalcon())->resources('/memos', $this->fullController());
+
+    $response = $this->send($app, 'POST', '/memos/1', '_method=DELETE', [
+      'Content-Type' => 'application/x-www-form-urlencoded',
+      'Sec-Fetch-Site' => 'cross-site',
+    ]);
+
+    $this->assertSame(403, $response->getStatusCode());
+  }
+
   public function testFromConfigTrustsConfiguredOrigins(): void
   {
     $path = tempnam(sys_get_temp_dir(), 'phalcon');

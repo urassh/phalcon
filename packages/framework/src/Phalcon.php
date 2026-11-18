@@ -16,6 +16,8 @@ use Urassh\Phalcon\Exception\ConfigException;
 use Urassh\Phalcon\Exception\HttpException;
 use Urassh\Phalcon\Internal\Config\Config;
 use Urassh\Phalcon\Internal\Middleware\CrossOriginProtection;
+use Urassh\Phalcon\Internal\Middleware\FormBody;
+use Urassh\Phalcon\Internal\Middleware\MethodOverride;
 use Urassh\Phalcon\Internal\Middleware\Pipeline;
 use Urassh\Phalcon\Internal\Routing\Router;
 use Urassh\Phalcon\Internal\Routing\RouterHandler;
@@ -261,12 +263,14 @@ final class Phalcon implements RequestHandlerInterface
    * リクエストを 1 件処理する。ミドルウェアを通してからルーティングする
    *
    * 別オリジンから送られた POST / PUT / PATCH / DELETE などは、ミドルウェアより先に 403 にする (CSRF 対策)。
+   * そのあと urlencoded のフォームをパースし、POST のフォームに `_method` があればそのメソッドに置き換える。
    * ミドルウェアが投げた HttpException も、ハンドラが投げたときと同じ形式のエラーレスポンスにする
    */
   public function handle(ServerRequestInterface $request): ResponseInterface
   {
     $router = new RouterHandler($this->router, new Psr17Factory());
-    $handler = new Pipeline([$this->crossOrigin, ...$this->middleware], $router);
+    // CSRF の判定は上書き前の POST に対して行うので、MethodOverride より外側に置く
+    $handler = new Pipeline([$this->crossOrigin, new FormBody(), new MethodOverride(), ...$this->middleware], $router);
 
     try {
       return $handler->handle($request);

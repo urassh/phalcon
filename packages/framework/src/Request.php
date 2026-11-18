@@ -85,6 +85,28 @@ final class Request
     return is_string($value) ? $value : null;
   }
 
+  /**
+   * application/x-www-form-urlencoded で送られたフォームの値。文字列でない値 (`tags[]` などの配列) は null
+   */
+  public function form(string $name): ?string
+  {
+    $value = $this->formAll()[$name] ?? null;
+
+    return is_string($value) ? $value : null;
+  }
+
+  /**
+   * application/x-www-form-urlencoded で送られたフォームの値すべて。フォームでなければ空の配列
+   *
+   * @return array<array-key, mixed>
+   */
+  public function formAll(): array
+  {
+    $form = $this->request->getParsedBody();
+
+    return is_array($form) ? $form : [];
+  }
+
   public function header(string $name): ?string
   {
     return $this->request->getHeader($name)[0] ?? null;
