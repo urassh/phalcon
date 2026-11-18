@@ -96,6 +96,24 @@ final class Phalcon implements RequestHandlerInterface
   }
 
   /**
+   * すべてのテンプレート (エラーページを含む) に変数 `$name` として渡す値を登録する。同じ名前でもう一度呼ぶと置き換える
+   *
+   * Response::view() に渡したデータと名前がかぶったら、そちらを優先する
+   *
+   * @throws InvalidArgumentException 変数名として使えない名前の場合
+   */
+  public function share(string $name, mixed $value): self
+  {
+    if (preg_match('/\A[A-Za-z_][A-Za-z0-9_]*\z/', $name) !== 1 || $name === 'this') {
+      throw new InvalidArgumentException("Shared name must be a valid variable name, got '{$name}'");
+    }
+
+    $this->router->share($name, $value);
+
+    return $this;
+  }
+
+  /**
    * エラーレスポンスの形式を決めるフックを登録する。もう一度呼ぶと置き換える
    *
    * ハンドラが投げた HttpException、ルートにマッチしない 404 / 405、想定外の例外 (500 の HttpException に包み、

@@ -138,6 +138,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `resources(string $path, Controller $controller, ?array $only = null, array $except = []): self` | コントローラのアクションをリソースの規約でまとめて登録する |
 | `config(string $key): mixed` | 設定値を `'database.dsn'` のようにドット区切りで参照する。キーがなければ `null` |
 | `useRenderer(Renderer $renderer): self` | `Response::view()` で使うテンプレートエンジンを差し替える |
+| `share(string $name, mixed $value): self` | すべてのテンプレートに渡す値を登録する ([共通の値](#共通の値)) |
 | `onError(callable $handler): self` | エラーレスポンスの形式を決めるフックを登録する ([エラーの形式を変える](#エラーの形式を変える)) |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
 | `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。[CSRF 対策](#csrf-対策)とミドルウェアを通してからルーティングする |
@@ -350,6 +351,25 @@ $app->get('/users/{id}', fn (Request $req) => Response::view('users/show', [
 
 - テンプレートに値を出力するときは `e()` (`htmlspecialchars` のラッパー) でエスケープする
 - `view.directory` が未設定、またはテンプレートが存在しない場合は `500 Internal Server Error` になる
+
+#### 共通の値
+
+レイアウトに出すアプリ名など、すべてのテンプレートで使う値は `share()` で登録する。エラーページや `onError()` のフックが返した view にも渡る。
+
+```php
+$app->share('appName', $app->config('app.name'));
+```
+
+```php
+<!-- views/layout/header.php -->
+<title><?= e($title) ?> - <?= e($appName) ?></title>
+```
+
+- `Response::view()` に渡したデータと名前がかぶったら、`view()` のデータを優先する。エラーページの `$status` と `$message` も同じ
+- 同じ名前でもう一度呼ぶと置き換える
+- 変数名として使えない名前 (`app-name` や `this` など) を渡すと `InvalidArgumentException` を投げる
+- 登録した値はワーカのプロセスが続くあいだ、すべてのリクエストで共有される。ログイン中のユーザなどリクエストごとに変わる値は入れず、`view()` のデータで渡す
+- `useRenderer()` で差し替えた `Renderer` にも、`$data` に混ぜた形で渡る
 
 Twig などのテンプレートエンジンを使いたい場合は、`Renderer` を実装して `useRenderer()` で渡す。
 

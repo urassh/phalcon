@@ -176,9 +176,11 @@ final class Response
   /**
    * テンプレートを描画し、その結果をボディにした新しいインスタンスを返す
    *
+   * @param array<string, mixed> $shared Phalcon::share() で登録した値。名前がかぶったら view() に渡したデータを優先する
+   *
    * @internal
    */
-  public function render(Renderer $renderer): self
+  public function render(Renderer $renderer, array $shared = []): self
   {
     if ($this->view === null) {
       return $this;
@@ -186,7 +188,7 @@ final class Response
 
     [$name, $data] = $this->view;
 
-    return new self($renderer->render($name, $data), $this->status, $this->headers);
+    return new self($renderer->render($name, [...$shared, ...$data]), $this->status, $this->headers);
   }
 
   /** @internal */

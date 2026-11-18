@@ -136,7 +136,7 @@ $app->get('/hello/{name}', fn (Request $req) => Response::view('hello', [
 <h1>Hello, <?= e($name) ?></h1>
 ```
 
-テンプレートは素の PHP ファイルで、`e()` で HTML エスケープする。Twig などに差し替えるときは `Renderer` を実装して `$app->useRenderer()` に渡す。
+テンプレートは素の PHP ファイルで、`e()` で HTML エスケープする。アプリ名などすべてのテンプレート (エラーページを含む) で使う値は `$app->share('appName', ...)` で登録できる。Twig などに差し替えるときは `Renderer` を実装して `$app->useRenderer()` に渡す。
 
 ### ミドルウェア
 
