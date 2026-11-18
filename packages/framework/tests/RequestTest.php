@@ -42,6 +42,24 @@ final class RequestTest extends TestCase
     $this->assertNull($request->query('tags'));
   }
 
+  public function testFormReturnsParsedValueOrNull(): void
+  {
+    $request = new Request((new ServerRequest('POST', '/'))->withParsedBody(['title' => 'a', 'tags' => ['x']]));
+
+    $this->assertSame('a', $request->form('title'));
+    $this->assertNull($request->form('missing'));
+    $this->assertNull($request->form('tags'));
+    $this->assertSame(['title' => 'a', 'tags' => ['x']], $request->formAll());
+  }
+
+  public function testFormIsEmptyWithoutParsedBody(): void
+  {
+    $request = new Request(new ServerRequest('POST', '/', body: 'title=a'));
+
+    $this->assertNull($request->form('title'));
+    $this->assertSame([], $request->formAll());
+  }
+
   public function testHeaderIsCaseInsensitiveAndReturnsFirstValue(): void
   {
     $request = new Request(new ServerRequest('GET', '/', ['X-Token' => ['abc', 'def']]));

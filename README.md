@@ -114,6 +114,7 @@ $app->resources('/posts', new PostsController(), only: ['index', 'show']);
 $app->post('/users', function (Request $req) {
   $body = $req->json();          // 不正な JSON なら 400 を返して打ち切る
   $sort = $req->query('sort');   // ?sort=... がなければ null
+  $title = $req->form('title');  // urlencoded のフォームの値。なければ null
   $token = $req->header('Authorization');
 
   return Response::created('/users/42', ['name' => $body['name']]);
@@ -152,6 +153,8 @@ $app->add(new class () implements MiddlewareInterface {
 ```
 
 CSRF 対策は組み込みで常に有効。別のサイトのページから送られた POST / PUT / PATCH / DELETE は、ブラウザが付ける `Sec-Fetch-Site` ヘッダを見て `403` にする。トークンをフォームに埋め込む必要はない。詳しくは [framework の README](packages/framework/README.md#csrf-対策) を参照。
+
+HTML のフォームから PUT / PATCH / DELETE のルートを呼ぶときは、POST のフォームに `<input type="hidden" name="_method" value="DELETE">` を入れる。これも組み込みで、`resources()` の `update` / `destroy` にそのまま届く。
 
 ### 設定ファイル
 

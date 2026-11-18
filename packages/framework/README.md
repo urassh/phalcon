@@ -141,7 +141,7 @@ $app->get('/', fn (Request $req) => Response::view('index', ['title' => 'Top']))
 | `share(string $name, mixed $value): self` | すべてのテンプレートに渡す値を登録する ([共通の値](#共通の値)) |
 | `onError(callable $handler): self` | エラーレスポンスの形式を決めるフックを登録する ([エラーの形式を変える](#エラーの形式を変える)) |
 | `add(MiddlewareInterface $middleware): self` | PSR-15 のミドルウェアを追加する。先に追加したものほど外側で動く |
-| `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。[CSRF 対策](#csrf-対策)とミドルウェアを通してからルーティングする |
+| `handle(ServerRequestInterface $request): ResponseInterface` | リクエストを 1 件処理する (PSR-15)。[CSRF 対策](#csrf-対策)、[フォーム](#フォームとメソッドの上書き)の処理、ミドルウェアを通してからルーティングする |
 
 ルート登録メソッドは `$this` を返すので、チェーンして書ける。
 
@@ -188,6 +188,24 @@ $app->add(new class () implements MiddlewareInterface {
 - どちらのヘッダも付けない古いブラウザからのリクエストは通る
 
 拒否したときのメッセージは `Cross-origin request blocked`。`errors/403.php` や `onError()` の扱いはハンドラが投げた例外と同じ。
+
+#### フォームとメソッドの上書き
+
+`Content-Type: application/x-www-form-urlencoded` のボディはフレームワークがパースし、PSR-7 の `getParsedBody()` に入れる。ハンドラでは `$req->form('title')` で読める。メソッドは問わない (PHP の `$_POST` と違い PATCH などでもパースする)。
+
+HTML のフォームは GET / POST しか送れないので、POST のフォームに `_method` があれば、そのメソッドとしてルーティングする。
+
+```php
+<form method="post" action="/memos/<?= e((string) $id) ?>">
+  <input type="hidden" name="_method" value="DELETE">
+  <button>削除</button>
+</form>
+```
+
+- 上書きできるのは POST から PUT / PATCH / DELETE への変換だけ。値の大文字小文字は区別しない。GET などそれ以外の値は無視して POST のまま扱う
+- 見るのは urlencoded のフォームの `_method` だけ。JSON のボディや `X-HTTP-Method-Override` ヘッダは見ない (API なら本来のメソッドで送ればよい)
+- [CSRF 対策](#csrf-対策)は上書きする前の POST に対して判定する。`add()` したミドルウェアとハンドラには上書き後のメソッドで届く
+- `multipart/form-data` (ファイルのアップロード) はパースしない
 
 #### ハンドラ
 
@@ -264,6 +282,8 @@ $app->resources('/posts', new PostsController(), except: ['destroy']);
 | `header(string $name)` | `?string` | ヘッダの値。名前の大文字小文字は区別しない。同名が複数あれば最初の値。なければ `null` |
 | `body()` | `string` | ボディ |
 | `json()` | `mixed` | ボディを JSON としてデコードした結果 (オブジェクトは連想配列になる) |
+| `form(string $name)` | `?string` | urlencoded のフォームの値 ([フォーム](#フォームとメソッドの上書き))。なければ、または文字列でなければ (`tags[]` など) `null` |
+| `formAll()` | `array` | urlencoded のフォームの値すべて。フォームでなければ空の配列 |
 | `psr()` | `ServerRequestInterface` | 包んでいる PSR-7 のリクエスト |
 
 ルートパラメータは PSR-7 のリクエストの属性 (`getAttribute('id')`) としても渡る。
