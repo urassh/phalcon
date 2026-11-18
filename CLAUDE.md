@@ -38,7 +38,7 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 |---|---|---|
 | `packages/server` (phalcon-server) | `Urassh\Phalcon\Server\` | プロトコル非依存のイベントループとソケットのプラットフォーム。外部依存なし |
 | `packages/core` (phalcon-core) | `Urassh\Phalcon\Core\` | 自作の PSR-7 / PSR-17 実装 |
-| `packages/http` (phalcon-http) | `Urassh\Phalcon\Http\` | 任意の PSR-15 ハンドラを動かす HTTP/1.1 サーバ。server + core に依存 |
+| `packages/http` (phalcon-http) | `Urassh\Phalcon\Http\` | 任意の PSR-15 ハンドラを動かす HTTP/1.1 サーバ。core に依存し、server は suggest (既定のサーバ層) |
 | `packages/framework` (phalcon-framework) | `Urassh\Phalcon\` | ルーティング、テンプレート、YAML 設定。`Phalcon` が PSR-15 ハンドラ。core に依存 |
 
 `scripts/check-boundaries.sh` が grep で以下を強制している (CI で落ちる):
@@ -46,15 +46,17 @@ CI (`.github/workflows/ci.yml`) はパッケージごとに単体で `composer i
 - framework は server / http に依存しない (composer.json でも `src` の名前空間参照でも)
 - server は HTTP を知らない (`urassh/phalcon-http`、`psr/http-*`、`Psr\Http\` を参照しない)
 - core は server / http に依存しない
+- http は server を require せず、`Urassh\Phalcon\Server\` を参照するのは `PhalconServerTransport` だけ (server がない環境でもほかのクラスを読み込めるように)
 
 新しいコードをどのパッケージに置くかはこの制約から決まる。たとえば framework から HTTP のパースやシリアライズに触れることはできず、そこは http パッケージの責務。
 
 ### リクエストの流れ
 
-1. `Server\Server::serve(Protocol, host, port)` が `PlatformFactory::detect()` でプラットフォームを選ぶ。Linux かつ FFI が使えれば `Platform\Linux` (epoll、`Libc` で libc を FFI ロード)、それ以外 (macOS ホストで直接動かす場合など) は `Platform\StreamSelect`
-2. `EventLoop` が接続ごとの `Connection` にバイト列をためる。ループは `Server\Protocol` インターフェース (`isComplete(string)` / `respond(string): string`) 越しにしかプロトコルを知らない
-3. `Http\HttpProtocol` が `Protocol` を実装し、`RequestParser` で core の `ServerRequest` を作って PSR-15 ハンドラに渡し、`ResponseSerializer` でバイト列に戻す。パース失敗は 400、ハンドラの例外は 500 にここで変換する
-4. framework の `Phalcon::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
+1. `Http\HttpServer` はサーバ層を `Http\Transport` (`serve(HttpProtocol): never`) 越しに扱い、host / port / workers などの待ち受けの設定は持たない (各 `Transport` の実装が持つ)。既定の `PhalconServerTransport` が `HttpProtocol` を `Server\Protocol` に包んで `Server\Server` に渡す (phalcon-server がなく `Transport` も渡されなければ生成時に `LogicException`)
+2. `Server\Server::serve(Protocol, host, port)` が `PlatformFactory::detect()` でプラットフォームを選ぶ。Linux かつ FFI が使えれば `Platform\Linux` (epoll、`Libc` で libc を FFI ロード)、それ以外 (macOS ホストで直接動かす場合など) は `Platform\StreamSelect`
+3. `EventLoop` が接続ごとの `Connection` にバイト列をためる。ループは `Server\Protocol` インターフェース (`isComplete(string)` / `respond(string): string`) 越しにしかプロトコルを知らない
+4. `Http\HttpProtocol` が `RequestParser` で core の `ServerRequest` を作って PSR-15 ハンドラに渡し、`ResponseSerializer` でバイト列に戻す。パース失敗は 400、ハンドラの例外は 500 にここで変換する
+5. framework の `Phalcon::handle()` はミドルウェアの `Internal\Middleware\Pipeline` を通して `Internal\Routing\RouterHandler` に渡す。RouterHandler が PSR-7 リクエストをフレームワーク独自の `Request` に包み、`Router` の結果 (`Response`) を `toPsr()` で PSR-7 に戻す
 
 `entrypoint.php` は `Phalcon` と `HttpServer` を組み合わせるサンプルで、`make smoke` の対象。smoke は `GET /`・`/users/{id}`・`POST /echo`・404・405・400 に加え、`workers: 2` で `/slow` の間も `GET /` が返ること、master を止めるとワーカも止まることを確かめているので、ルーティングやエラー応答、起動の仕方を変えたら `scripts/smoke.sh` も合わせる。
 

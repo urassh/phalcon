@@ -8,12 +8,13 @@ use InvalidArgumentException;
 use Psr\Http\Server\RequestHandlerInterface;
 use Throwable;
 use Urassh\Phalcon\Core\Response;
-use Urassh\Phalcon\Server\Protocol;
 
 /**
  * 受け取ったバイト列を ServerRequestInterface にして PSR-15 のハンドラに渡す
+ *
+ * サーバ層 (Transport) から呼ばれる。phalcon-server に依存しないよう、その Protocol は実装しない
  */
-final class HttpProtocol implements Protocol
+final class HttpProtocol
 {
   private readonly RequestParser $parser;
 

@@ -11,6 +11,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Urassh\Phalcon\Core\Response;
 use Urassh\Phalcon\Http\HttpServer;
+use Urassh\Phalcon\Http\PhalconServerTransport;
 
 $handler = new class () implements RequestHandlerInterface {
   public function handle(ServerRequestInterface $request): ResponseInterface
@@ -19,4 +20,4 @@ $handler = new class () implements RequestHandlerInterface {
   }
 };
 
-(new HttpServer('127.0.0.1', 0))->serve($handler);
+(new HttpServer(new PhalconServerTransport('127.0.0.1', 0)))->serve($handler);

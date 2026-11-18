@@ -14,7 +14,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
   'id' => $req->param('id'),
 ]));
 
-(new HttpServer(port: 8080))->serve($app);
+(new HttpServer())->serve($app); // 0.0.0.0:8080 で待ち受ける
 ```
 
 > C 拡張のフレームワーク [Phalcon](https://phalcon.io/) とは無関係のプロジェクト。
@@ -36,8 +36,10 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 ## インストール
 
 ```sh
-composer require urassh/phalcon-framework urassh/phalcon-http
+composer require urassh/phalcon-framework urassh/phalcon-http urassh/phalcon-server
 ```
+
+`urassh/phalcon-server` は `HttpServer` が既定で使うサーバ層。自前のサーバ層 (`Transport`) を渡すなら入れなくてよい ([phalcon-http の README](packages/http#サーバ層を差し替える))。
 
 ## クイックスタート
 
@@ -51,6 +53,7 @@ declare(strict_types=1);
 require __DIR__ . '/vendor/autoload.php';
 
 use Urassh\Phalcon\Http\HttpServer;
+use Urassh\Phalcon\Http\PhalconServerTransport;
 use Urassh\Phalcon\Phalcon;
 use Urassh\Phalcon\Request;
 use Urassh\Phalcon\Response;
@@ -65,7 +68,7 @@ $app->get('/users/{id}', fn (Request $req) => Response::json([
 
 $app->post('/echo', fn (Request $req) => Response::text($req->body()));
 
-(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app);
+(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app);
 ```
 
 起動してリクエストを送る。
@@ -180,11 +183,11 @@ $app = Phalcon::fromConfig(__DIR__ . '/phalcon.yaml');
 
 $dsn = $app->config('database.dsn');
 
-(new HttpServer(
+(new HttpServer(new PhalconServerTransport(
   host: $app->config('server.host'),
   port: $app->config('server.port'),
   workers: $app->config('server.workers'),
-))->serve($app);
+)))->serve($app);
 ```
 
 DB と組み合わせる例や、常駐プロセスで気をつけることも [phalcon-framework の README](packages/framework#db-と組み合わせる) にまとめてある。
@@ -195,7 +198,7 @@ DB と組み合わせる例や、常駐プロセスで気をつけることも [
 並行に処理したいときは `workers` を増やす。その数だけワーカプロセスを fork し、同時にワーカ数までのリクエストを処理できる。
 
 ```php
-(new HttpServer(host: '0.0.0.0', port: 8080, workers: 4))->serve($app);
+(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080, workers: 4)))->serve($app);
 ```
 
 - 各ワーカは `SO_REUSEPORT` 付きで同じアドレスに listen し、接続の振り分けはカーネルに任せる
@@ -235,11 +238,12 @@ phalcon-framework ────┐
                       ├──> phalcon-core ──> psr/http-message, psr/http-factory
 phalcon-http ─────────┘
      │   └──> psr/http-server-handler
-     └──> phalcon-server
+     └╌╌> phalcon-server (suggest。既定のサーバ層)
 ```
 
 - フレームワークはループ / プラットフォーム (phalcon-server) にも HTTP サーバ (phalcon-http) にも依存しない
 - phalcon-server は HTTP を知らない。`Protocol` (「バイト列が揃ったか」「応答のバイト列」) 越しにしかプロトコルを扱わない
+- phalcon-http は phalcon-server を require しない。サーバ層は `Transport` 越しに扱い、phalcon-server を参照するのは既定の実装の `PhalconServerTransport` だけ
 - 依存の向きは `scripts/check-boundaries.sh` で CI から検査している
 
 ## アップグレード
@@ -247,8 +251,10 @@ phalcon-http ─────────┘
 ### 次のリリースでの破壊的変更
 
 - framework の `App` を `Phalcon` に改名した (`Urassh\Phalcon\Phalcon`)
-- `HttpServer` の `host` / `port` / `workers` を `serve()` の引数からコンストラクタの引数に移した。`(new HttpServer(host: '0.0.0.0', port: 8080))->serve($app)` のように書く
+- `HttpServer` の `host` / `port` / `workers` を `serve()` の引数から外し、サーバ層の `PhalconServerTransport` のコンストラクタに移した。`(new HttpServer(new PhalconServerTransport(host: '0.0.0.0', port: 8080)))->serve($app)` のように書く。`Server` を渡していた場合は `new PhalconServerTransport(server: $server)` にする
 - `Port\Platform::listen()` に `bool $reusePort = false` を足した。`Platform` を自前で実装している場合はシグネチャを合わせる
+- phalcon-http が phalcon-server を require しなくなった。`HttpServer` を既定のまま使うなら `composer require urassh/phalcon-server` を足す (入っていないと `HttpServer` の生成時に `LogicException`)
+- `HttpProtocol` が phalcon-server の `Protocol` を実装しなくなった。`Server` に直接渡していた場合は `PhalconServerTransport` を使う
 
 ### 0.1 からの破壊的変更
 
